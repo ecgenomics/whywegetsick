@@ -1,0 +1,281 @@
+---
+title: "Figure4_Demography"
+author: "Eva Brigos"
+date: "2025-05-13"
+output: html_document
+---
+
+# Load required libraries
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(ggbreak)
+```
+
+# Load data-frames
+
+```{r}
+# Age at disease onset
+ado <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+colnames(ado)[1] <- "Code"
+```
+
+# Load the metadata file
+
+```{r}
+metadata <- read.csv("../data/metadata_62complexdiseases.csv", sep = ";")
+meta <- metadata %>% select(Code, Percentage_UKBiobank_Participants)
+```
+
+```{r}
+meta <- meta %>%
+  mutate(Size = case_when(
+    Percentage_UKBiobank_Participants >= 0 & Percentage_UKBiobank_Participants <= 25 ~ 3,
+    Percentage_UKBiobank_Participants > 25 & Percentage_UKBiobank_Participants <= 75 ~ 2,
+    Percentage_UKBiobank_Participants > 75 & Percentage_UKBiobank_Participants <= 100 ~ 1,
+    TRUE ~ NA_real_
+  ))
+```
+
+# Load the N cases file
+
+```{r}
+ncases <- read.csv("../data/samplesize_decile10_62diseases.csv", sep = ",", header = TRUE)
+```
+
+# Define the directory containing the files
+
+```{r}
+#Please request data to authors.
+file_directory <- "../demography_analysis/results/nchildren_rmarkdown_analysis_v16.03.2025"
+```
+
+# List all 62 files
+
+```{r}
+file_list <- list.files(path = file_directory, pattern = "\\_mean_sd_all.tsv$", recursive = TRUE, full.names = TRUE)
+```
+
+# Initialize an empty data frame to store the results
+
+```{r}
+result_df <- data.frame(Disease = character(), Mean_Case = numeric(), Mean_Control = numeric(), stringsAsFactors = FALSE)
+```
+
+# Iterate through each file to extract required information
+
+```{r}
+disease_array <- c()
+cases_mean_array <- c()
+controls_mean_array <- c()
+cases_sd_array <- c()
+controls_sd_array <- c()
+
+for (file_path in file_list) {
+  data <- read.csv(file_path, sep = "\t")
+  # Extract the disease
+  disease_code <- data$Disease[1]
+  # Calculate mean values
+  mean_case <- data$mean[data$Status == "Decil 10, cases"]
+  mean_control <- data$mean[data$Status == "Decil 10, controls"]
+  # Calculate SD
+  sd_case <- data$sd[data$Status == "Decil 10, cases"]
+  sd_control <- data$sd[data$Status == "Decil 10, controls"]
+  # Append to the arrays
+  disease_array <- c(disease_array, disease_code)
+  cases_mean_array <- c(cases_mean_array, mean_case)
+  controls_mean_array <- c(controls_mean_array, mean_control)
+  cases_sd_array <- c(cases_sd_array, sd_case)
+  controls_sd_array <- c(controls_sd_array, sd_control)
+}
+```
+
+# Create the new data-frame
+
+```{r}
+result_df <- data.frame(Code = disease_array, Mean_Case = cases_mean_array,
+                        Mean_Control = controls_mean_array,
+                        SD_Case = cases_sd_array,
+                        SD_Control = controls_sd_array
+                        )
+```
+
+# Merge the results with Ncases
+
+```{r}
+result_df <- merge(result_df, ncases, by = "Code")
+```
+
+# Compute the ratio between cases and controls
+
+```{r}
+result_df$Ratio <- result_df$Mean_Control / result_df$Mean_Case
+```
+
+# Compute the SE of the ratio (delta method)
+
+First, convert the SD to SE:
+
+```{r}
+result_df$SE_cases <- result_df$SD_Case / sqrt(result_df$NCases)
+result_df$SE_controls <- result_df$SD_Control / sqrt(result_df$NControls)
+```
+
+Calculate the SE of the ratio:
+
+Delta method, option 1:
+
+```{r}
+option1 <- result_df$Ratio * sqrt((result_df$SE_cases / result_df$Mean_Case)^2 + (result_df$SE_controls / result_df$Mean_Control)^2)
+```
+
+Delta method, option 2:
+
+```{r}
+option2 <- sqrt((result_df$SE_cases^2 / result_df$Mean_Control^2) + ((result_df$Mean_Case^2 * result_df$SE_controls^2) / result_df$Mean_Control^4))
+option2 <- sqrt((result_df$SE_controls^2 / result_df$Mean_Case^2) + ((result_df$Mean_Control^2 * result_df$SE_cases^2) / result_df$Mean_Case^4))
+```
+
+It gives the same result with both formulas!
+
+```{r}
+result_df$Ratio_SE <- result_df$Ratio * sqrt((result_df$SE_cases / result_df$Mean_Case)^2 + (result_df$SE_controls / result_df$Mean_Control)^2)
+```
+
+```{r, eval=FALSE}
+# This table corresponds to Supplementary Table 16
+write.csv(result_df, file = "./demography_main_figure_62diseases_nchildren.tsv", row.names = FALSE, quote = FALSE)
+```
+
+# Merge with the age at disease onset
+
+```{r}
+df_plot <- merge(result_df, ado, by = "Code")
+```
+
+# Order by onset age
+
+```{r}
+df_plot <- df_plot[order(df_plot$ADO_5), ]
+# Regenerate index
+rownames(df_plot) <- NULL
+```
+
+# Compute the SE limits
+
+```{r}
+df_plot$Ratio_SE_min <- df_plot$Ratio - df_plot$Ratio_SE
+df_plot$Ratio_SE_max <- df_plot$Ratio + df_plot$Ratio_SE
+```
+
+For disease with ID=2, there are only 4 cases so the SE is very big.
+I will make sure that the SE is not bigger than the ratio itself.
+
+# See which 95% CI accepts null hypothesis (no difference between cases and controls)
+If the 95% CI includes 1, then the null hypothesis is accepted.
+
+```{r}
+# Iterate over rows of data-frame
+for (i in 1:nrow(df_plot)) {
+  # Check if the confidence interval includes 1
+  if (df_plot$Ratio_SE_min[i] < 1 && df_plot$Ratio_SE_max[i] > 1) {
+    # new column with non-significant
+    df_plot$Ratio_non_significant[i] <- "non-significant"
+  } else {
+    df_plot$Ratio_non_significant[i] <- "significant"
+  }
+}
+```
+
+# See if diagnosed or undiagnosed individuals have more children
+
+```{r}
+for (i in 1:nrow(df_plot)) {
+  if (df_plot$Ratio_non_significant[i] == "non-significant") {
+    df_plot$Shape[i] <- "non-significant"
+  } else {
+    if (df_plot$Ratio[i] > 1) {
+      df_plot$Shape[i] <- "controls_more_children"
+    } else {
+      df_plot$Shape[i] <- "cases_more_children"
+    }
+  }
+}
+```
+
+# Merge with metadata information
+
+```{r}
+df_plot <- merge(df_plot, meta, by = "Code")
+```
+
+Save the data-frame:
+
+```{r, eval=FALSE}
+write.csv(df_plot, file = "./demography_main_figure_62diseases_nchildren_plot.tsv", row.names = FALSE)
+```
+
+# Create a scatterplot
+
+# Option three: adding color to differentiate between diagnosed with more children and undiagnosed with more childre.
+
+```{r}
+#Put size as factor
+df_plot$Size <- as.factor(df_plot$Size)
+```
+
+```{r}
+p3 <- ggplot(df_plot, aes(x = ADO_5, y = log2(Ratio))) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "gray", linewidth = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, color = "red", linetype = "dashed", size = 0.7) +
+  geom_point(aes(size = Size, color = Shape, alpha = 0.85)) +
+  scale_size_discrete(labels = c("75 - 100%", "25 - 75%", "0 - 25%"), range = c(2, 7)) +
+  scale_color_manual(values = c("#000000D9", "#EE3B3BD9", "#E3E3E3D9"),
+                     labels = c(expression("Offspring number is higher in" ~ bold("diagnosed") ~ "individuals"),
+                                expression("Offspring number is higher in" ~ bold("undiagnosed") ~ "individuals"),
+                                expression("No significant difference"))) +
+  scale_alpha(guide = "none") +
+  scale_x_continuous(breaks = seq(0, 65, by = 10), limits = c(0, 65)) +
+  scale_y_continuous(breaks = seq(-0.25, 1.25, by = 0.25), limits = c(-0.20, 1.25)) +
+  theme_classic()
+p3 <- p3 + labs(x = "Age at disease onset", y = expression(log[2](Ratio)))
+p3 <- p3 + theme(
+    axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 5)),
+    axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+    axis.title.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 10), face = "bold"),
+    axis.title.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 10), face = "bold"),
+    legend.title = element_text(size = 7, family = "Arial", color = "black", face = "bold"),
+    legend.text = element_text(size = 7, family = "Arial", color = "black"),
+    legend.text.align = 0,
+    legend.position = c(0.78, 0.75),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"))
+p3 <- p3 + labs(size = "Overlap with UK Biobank", color = "") +
+  guides(size = guide_legend(override.aes = list(color = "black", shape = 21)))
+p3 <- p3 + 
+  guides(
+    # color legend as first
+    color = guide_legend(
+      override.aes = list(size = 8),
+      order = 1
+    ),
+    # size legend as second
+    size = guide_legend(
+      override.aes = list(color = "black", shape = 21),
+      order = 2
+    )
+  )
+```
+
+Save:
+
+```{r}
+ggsave("./Figure4_demography.png", p3, width = 180, height = 130, units = "mm", dpi = 400)
+```
+
+
+
+
+
