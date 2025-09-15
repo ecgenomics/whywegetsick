@@ -1,0 +1,30 @@
+Code	ADO_5	ADO_50	ADO_95	Trait	Prev5	Prev50	Prev95
+1135	3.7	34.01	74.13	Atopic dermatitis	1.51	19.12	80.95
+2029	11.75	35.76	71.47	Chron’s disease	25.41	50.47	77.56
+2030	13.62	37.53	71.99	Ulcerative colitis	25.41	50.47	77.56
+2052	60.78	78.78	92.62	Age-related macular degeneration	59.88	80.31	92.85
+2	1.36	14.26	44.11	Attention deficit hyperactivity disorder	5.97	17.81	52.45
+3543	40.93	72.25	89.1	Cataract	50.91	80.88	93.05
+3603	7.73	33.54	68.52	Migraine	15.08	40.78	72.31
+3666	39.11	65.98	85.9	Benign neoplasm of colon-rectum-anus	41.79	62.97	80.78
+3669	6.78	54.43	81.05	Gastro-oesophageal reflux disease	25.15	54.76	83.29
+3670	23.66	61.49	86.04	Gastritis and Duodenitis	25.89	57.05	80.98
+3671	3.12	50.62	79.24	Inguinal hernia	10.0	57.58	80.72
+3675	25.6	56.04	84.16	Cholelithiasis	30.16	56.88	85.3
+3693	44.12	67.31	88.49	Coronary artery disease	48.58	72.34	88.91
+3698	31.26	62.93	86.41	Diaphragmatic hernia	10.0	57.58	80.72
+4039	16.56	38.64	68.52	Bipolar disorder	17.83	47.03	78.33
+4085	41.7	68.77	88.27	Type 2 diabetes	38.03	66.82	87.21
+4307	38.01	61.56	84.66	Osteoarthritis	46.25	67.5	87.89
+4333	13.99	26.95	39.51	Polycystic ovary syndrome	16.33	34.08	49.39
+GCST003763	24.6	71.5	89.28	Age-related hearing impairment	32.95	68.56	88.86
+GCST010003	1.26	17.44	74.28	Refractive error	9.3	53.6	87.62
+GCST90011808	53.71	71.06	87.46	Prostate cancer	55.89	71.73	86.42
+GCST90011809	30.51	61.8	86.72	Melanoma	29.56	60.89	84.62
+GCST90011810	45.25	68.59	87.72	Rectal cancer	48.67	71.38	87.99
+GCST90011811	41.49	70.78	88.81	Colon cancer	48.67	71.38	87.99
+GCST90011812	50.05	68.3	86.82	Lung cancer	49.56	67.77	85.55
+GCST90011816	29.99	49.81	81.02	Cervical cancer	30.79	50.93	77.43
+GCST90011817	48.49	71.35	88.76	Bladder cancer	50.86	71.46	87.94
+GCST90011819	43.06	72.25	89.31	Non-Hodgkin's lymphoma	41.5	73.39	89.13
+GCST90011820	44.3	65.51	86.04	Endometrial cancer	46.53	65.63	83.79

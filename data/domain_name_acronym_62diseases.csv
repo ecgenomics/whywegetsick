@@ -1,0 +1,63 @@
+Code;DiseaseName;Acronym;Domain
+4266;Asthma child-onset;ACO;Diseases of the respiratory system
+GCST90014023;Type 1 diabetes;T1D;Endocrine, nutritional or metabolic diseases
+1135;Atopic dermatitis;ECZ;Diseases of the skin
+PGC2019ASD;Autism spectrum disorder;ASD;Mental, behavioural or neurodevelopmental disorders
+2;Attention deficit hyperactivity disorder;ADHD;Mental, behavioural or neurodevelopmental disorders
+GCST010003;Refractive error;RE;Diseases of the eye and adnexa
+PGC2019AN;Anorexia nervosa;AN;Mental, behavioural or neurodevelopmental disorders
+3671;Inguinal hernia;IHER;Diseases of the digestive system
+3437;Allergic rhinitis;ALL;Diseases of the respiratory system
+4333;Polycystic ovary syndrome;PCOS;Endocrine, nutritional or metabolic diseases
+PGC2019PTSD;Post-traumatic stress disorder;PTSD;Mental, behavioural or neurodevelopmental disorders
+3603;Migraine;MIG;Diseases of the nervous system
+PGC2022SCZ;Schizophrenia;SCZ;Mental, behavioural or neurodevelopmental disorders
+2029;Chron’s disease;CHRO;Diseases of the digestive system
+PGC2019MDD;Major depressive disorder;MDD;Mental, behavioural or neurodevelopmental disorders
+2030;Ulcerative colitis;ULC;Diseases of the digestive system
+GCST90129435;Cystitis;CYS;Diseases of the genitourinary system
+4039;Bipolar disorder;BD;Mental, behavioural or neurodevelopmental disorders
+PGC2019ALCUSE;Alcohol use disorder;AUD;Mental, behavioural or neurodevelopmental disorders
+3687;Obesity;OBE;Endocrine, nutritional or metabolic diseases
+4290;Insomnia;INS;Diseases of the nervous system
+4332;Erectile dysfunction;ERE;Diseases of the genitourinary system
+3685;Hypothyroidism;HYPO;Endocrine, nutritional or metabolic diseases
+3675;Cholelithiasis;CHOL;Diseases of the digestive system
+4267;Asthma adult-onset;AAO;Diseases of the respiratory system
+3669;Gastro-oesophageal reflux disease;GERD;Diseases of the digestive system
+GCST008057;Varicose veins;VAR;Diseases of the circulatory system
+3670;Gastritis and Duodenitis;GADU;Diseases of the digestive system
+GCST90132223;Rheumatoid arthritis;RHAR;Diseases of the musculoskeletal system or connective tissue
+GCST90129439;Fibromyalgia;FIBR;Diseases of the musculoskeletal system or connective tissue
+GCST009131;Systemic sclerosis;SYSC;Diseases of the musculoskeletal system or connective tissue
+GCST90011816;Cervical cancer;CERV;Neoplasms
+4276;Carpal tunnel syndrome;CTS;Diseases of the nervous system
+GCST009158;Uterine fibroids;UTE;Neoplasms
+GCST90011809;Melanoma;MEL;Neoplasms
+GCST90061440;Cirrhosis;CIRR;Diseases of the digestive system
+3698;Diaphragmatic hernia;DHER;Diseases of the digestive system
+4085;Type 2 diabetes;T2D;Endocrine, nutritional or metabolic diseases
+GCST003763;Age-related hearing impairment;HEAR;Diseases of the ear or mastoid process
+4307;Osteoarthritis;OST;Diseases of the musculoskeletal system or connective tissue
+BCAC2020BC;Breast cancer;BRE;Neoplasms
+3691;Hypertension;HYP;Diseases of the circulatory system
+GCST90129442;Gout;GOU;Diseases of the musculoskeletal system or connective tissue
+3666;Benign neoplasm of colon-rectum-anus;NEO;Neoplasms
+3543;Cataract;CAT;Diseases of the eye and adnexa
+GCST90011811;Colon cancer;COL;Neoplasms
+4311;Diverticular disease;DIV;Diseases of the digestive system
+3688;Lipoprotein metabolism disorders;LIPO;Endocrine, nutritional or metabolic diseases
+GCST90013410;Basal cell carcinoma;BCC;Neoplasms
+3693;Coronary artery disease;CAD;Diseases of the circulatory system
+GCST90011819;Non-Hodgkin's lymphoma;NHL;Neoplasms
+CMDKP2018AF;Atrial fibrillation;AF;Diseases of the circulatory system
+GCST011364;Myocardial infarction;MYO;Diseases of the circulatory system
+GCST90011820;Endometrial cancer;END;Neoplasms
+GCST009541;Heart failure;HF;Diseases of the circulatory system
+GCST90011766;Primary open-angle glaucoma;POAG;Diseases of the eye and adnexa
+GCST90011810;Rectal cancer;REC;Neoplasms
+GCST90011817;Bladder cancer;BLA;Neoplasms
+GCST90011812;Lung cancer;LUN;Neoplasms
+GCST90011808;Prostate cancer;PRO;Neoplasms
+2052;Age-related macular degeneration;ARMD;Diseases of the eye and adnexa
+PGC2021ALZwoUKBB;Alzheimer’s disease;AD;Diseases of the nervous system
