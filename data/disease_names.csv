@@ -1,0 +1,63 @@
+Code;DiseaseName;Acronym
+4266;Asthma child-onset;ACO
+GCST90014023;Type 1 diabetes;T1D
+1135;Atopic dermatitis;ECZ
+PGC2019ASD;Autism spectrum disorder;ASD
+2;Attention deficit hyperactivity disorder;ADHD
+GCST010003;Refractive error;RE
+PGC2019AN;Anorexia nervosa;AN
+3671;Inguinal hernia;IHER
+3437;Allergic rhinitis;ALL
+4333;Polycystic ovary syndrome;PCOS
+PGC2019PTSD;Post-traumatic stress disorder;PTSD
+3603;Migraine;MIG
+PGC2022SCZ;Schizophrenia;SCZ
+2029;Chron’s disease;CHRO
+PGC2019MDD;Major depressive disorder;MDD
+2030;Ulcerative colitis;ULC
+GCST90129435;Cystitis;CYS
+4039;Bipolar disorder;BD
+PGC2019ALCUSE;Alcohol use disorder;AUD
+3687;Obesity;OBE
+4290;Insomnia;INS
+4332;Erectile dysfunction;ERE
+3685;Hypothyroidism;HYPO
+3675;Cholelithiasis;CHOL
+4267;Asthma adult-onset;AAO
+3669;Gastro-oesophageal reflux disease;GERD
+GCST008057;Varicose veins;VAR
+3670;Gastritis and Duodenitis;GADU
+GCST90132223;Rheumatoid arthritis;RHAR
+GCST90129439;Fibromyalgia;FIBR
+GCST009131;Systemic sclerosis;SYSC
+GCST90011816;Cervical cancer;CERV
+4276;Carpal tunnel syndrome;CTS
+GCST009158;Uterine fibroids;UTE
+GCST90011809;Melanoma;MEL
+GCST90061440;Cirrhosis;CIRR
+3698;Diaphragmatic hernia;DHER
+4085;Type 2 diabetes;T2D
+GCST003763;Age-related hearing impairment;HEAR
+4307;Osteoarthritis;OST
+BCAC2020BC;Breast cancer;BRE
+3691;Hypertension;HYP
+GCST90129442;Gout;GOU
+3666;Benign neoplasm of colon-rectum-anus;NEO
+3543;Cataract;CAT
+GCST90011811;Colon cancer;COL
+4311;Diverticular disease;DIV
+3688;Lipoprotein metabolism disorders;LIPO
+GCST90013410;Basal cell carcinoma;BCC
+3693;Coronary artery disease;CAD
+GCST90011819;Non-Hodgkin's lymphoma;NHL
+CMDKP2018AF;Atrial fibrillation;AF
+GCST011364;Myocardial infarction;MYO
+GCST90011820;Endometrial cancer;END
+GCST009541;Heart failure;HF
+GCST90011766;Primary open-angle glaucoma;POAG
+GCST90011810;Rectal cancer;REC
+GCST90011817;Bladder cancer;BLA
+GCST90011812;Lung cancer;LUN
+GCST90011808;Prostate cancer;PRO
+2052;Age-related macular degeneration;ARMD
+PGC2021ALZwoUKBB;Alzheimer’s disease;AD
