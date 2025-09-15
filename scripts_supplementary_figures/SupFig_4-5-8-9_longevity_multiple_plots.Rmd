@@ -1,0 +1,400 @@
+---
+title: "Longevity Multiple Plots"
+author: "Eva Brigos"
+date: "2024-10-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library("ggpubr")
+library(forcats)
+library(cowplot)
+library(ggbreak)
+```
+
+# Load the dataframes
+
+```{r}
+#setwd("~/Documents/plots_paper/results_paper")
+
+# Genetic Correlations
+gc <- read.csv("../data/longevity-genetic-correlations.txt", sep = "\t")
+
+# Counts pleiotropic SNPs by disease
+pleiotropy <- read.csv("../data/longevity-commonSNPs-pleioFDR-conjfdr005-pleiotropies.csv", sep = ",")
+
+# Pleiotropy: all information by pleiotropic SNP
+pleiotropy2 <- read.csv("../data/plifespan_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+
+# Age at disease onset
+ado <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+
+# Metadata
+metadata <- read.csv("../data/domain_name_acronym_62diseases.csv", sep = ";")
+```
+
+Rename the dataframe columns:
+
+```{r}
+# Rename ado columns
+names(ado) <- c("Code", "ADO_5", "ADO_50", "ADO_95")
+
+# Rename GC columns
+names(gc) <- c("Code", "Intercept", "Intercept_SE", "GC", "GC_SE", "PValue")
+
+# Rename pleiotropy columns
+names(pleiotropy) <- c("Code", "TOTAL", "counts_positive", "counts_negative")
+
+# Rename pleiotropy2 columns
+pleiotropy2 <- pleiotropy2 %>%
+  rename(Code = disease_code)
+```
+
+Create a new merged dataframe:
+
+```{r}
+# Merge gc with ado
+gc_ado <- merge(gc, ado, by = "Code")
+
+# Merge to have GC information
+df <- merge(gc_ado, metadata, by = "Code")
+```
+
+# Plot the histogram to see if the variable is normally distributed
+
+```{r}
+hist(df$ADO_5, main = "Histogram of Age at Disease Onset", breaks = 20)
+hist(df$GC, main = "Histogram of Genetic Correlation", breaks = 14)
+```
+
+# Shapiro-wilk test to check for normality
+
+It gives back a p-value. If the p-value < 0.05, then the data is NOT normally distributed.
+
+```{r}
+# Genetic Correlation
+shapiro_result_gc <- shapiro.test(df$GC)
+shapiro_result_gc
+
+if (shapiro_result_gc$p.value < 0.05) {
+  print("The GC is not normally distributed")
+} else {
+  print("The GC is normally distributed")
+}
+
+# ADO
+shapiro_result_ado <- shapiro.test(df$ADO_5)
+shapiro_result_ado
+
+if (shapiro_result_ado$p.value < 0.05) {
+  print("The ADO is not normally distributed")
+} else {
+  print("The ADO is normally distributed")
+}
+```
+
+Neither the GC nor the ADO are normally distributed.
+
+# Linear model
+
+```{r}
+lm_model <- lm(GC ~ ADO_5, data = df)
+summary(lm_model)
+```
+
+# Select diseases based on some significance threshold
+
+```{r}
+nrow(df)
+# Compute FDR
+df$FDR <- p.adjust(df$PValue, method = "BH")
+# Filter for significance
+#df2 <- df %>% filter(PValue < 0.01)
+df2 <- df %>% filter(PValue < 0.05)
+nrow(df2)
+```
+
+# Correlation test
+
+```{r}
+correlation_result <- cor.test(df2$GC, df2$ADO_5, method = "spearman")
+print(correlation_result)
+correlation <- correlation_result$estimate
+p_value <- correlation_result$p.value
+
+correlation
+p_value
+```
+
+# Find the unique domain codes
+
+```{r}
+table(df2$DISEASE_DOMAIN)
+```
+
+# Do the plot by disease domain
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+domain_dict <- c("Diseases of the circulatory system" = "Circulatory system",
+                  "Diseases of the ear or mastoid process" = "Ear or mastoid process",
+                  "Diseases of the genitourinary system" = "Genitourinary system",
+                  "Diseases of the nervous system" = "Nervous system",
+                  "Diseases of the skin" = "Diseases of the skin",
+                  "Mental, behavioural or neurodevelopmental disorders" = "Mental, behavioural\nor neurodevelopmental",
+                  "Diseases of the digestive system" = "Digestive system",
+                  "Diseases of the eye and adnexa" = "Eye and adnexa",
+                  "Diseases of the musculoskeletal system or connective tissue" = "Musculoskeletal system\nor connective tissue",
+                  "Diseases of the respiratory system" = "Respiratory system",
+                  "Endocrine, nutritional or metabolic diseases" = "Endocrine, nutritional\nor metabolic",
+                  "Neoplasms" = "Neoplasms")
+
+# Create new column with the shorter version
+df$DomainShort <- domain_dict[df$Domain]
+df2$DomainShort <- domain_dict[df2$Domain]
+```
+
+Dictorionary for the colors:
+
+```{r}
+domcolors <- c(
+  "Diseases of the skin" = "black",                     # Black
+  "Mental, behavioural\nor neurodevelopmental" = "#56B4E9", # Sky Blue
+  "Digestive system" ="#332288",                         # Bluish Green
+  "Eye and adnexa" = "#F0E442",                           # Yellow
+  "Respiratory system" = "#0072B2",                       # Blue
+  "Nervous system" = "#D55E00",                           # Vermilion
+  "Neoplasms" = "#CC79A7",                                # Reddish Purple
+  "Endocrine, nutritional\nor metabolic" = "#E69F00",     # Orange
+  "Circulatory system" = "#882255",                      # Dark Magenta
+  "Musculoskeletal system\nor connective tissue" = "#117733", # Dark Green
+  "Genitourinary system" = "#009E73",                    # Dark Blue
+  "Ear or mastoid process" = "#DDCC77"                   # Tan
+)
+```
+
+With all diseases:
+
+```{r}
+gc_domain_all <- df %>%
+  mutate(class = fct_reorder(DomainShort, GC, .fun='median')) %>%
+  ggplot( aes(x=reorder(DomainShort, GC), y=GC)) +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "black", linewidth = 0.5) +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 0), fill = "#F8F8FF", alpha = 0.5) +
+    geom_boxplot(aes(fill = DomainShort)) +
+  geom_point(position = position_dodge(width = 0.75), size = 1.5, color = "black") +
+  scale_fill_manual(values = domcolors) +
+  theme_bw() +
+  labs(y = "rg (LDSC)") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1,
+                                            size = 7, family = "Arial", color = "black"),
+        axis.text.y = element_text(size = 7, family = "Arial", color = "black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, color = "black", margin = margin(r = 10), face = "bold", family = "Arial"),
+        plot.margin = margin(5, 5, 5, 5), # Add margins (top, right, bottom, left)
+        panel.grid = element_blank())
+
+```
+
+With the significant diseases:
+
+```{r}
+gc_domain_sig <- df2 %>%
+  mutate(class = fct_reorder(DomainShort, GC, .fun='median')) %>%
+  ggplot( aes(x=reorder(DomainShort, GC), y=GC)) +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "black", linewidth = 0.5) +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 0), fill = "#F8F8FF", alpha = 0.5) +
+    geom_boxplot(aes(fill = DomainShort)) +
+  geom_point(position = position_dodge(width = 0.75), size = 1.5, color = "black") +
+  scale_fill_manual(values = domcolors) +
+  theme_bw() +
+  labs(y = "rg (LDSC)") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1,
+                                            size = 7, family = "Arial", color = "black"),
+        axis.text.y = element_text(size = 7, family = "Arial", color = "black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, color = "black", margin = margin(r = 10), face = "bold", family = "Arial"),
+        plot.margin = margin(5, 5, 5, 5), # Add margins (top, right, bottom, left)
+        panel.grid = element_blank())
+
+```
+
+Merge into one figure:
+
+```{r}
+gc_domains_plot <- plot_grid(
+  gc_domain_all, gc_domain_sig,
+  ncol = 1,
+  labels = c("a", "b"),
+  label_fontface = "bold",
+  label_size = 10,
+  align = "hv",   # Align horizontally and vertically
+  rel_widths = c(1, 1)
+)
+```
+
+Save the plot:
+
+```{r}
+ggsave("./longevity_gc_by_domain.png", gc_domains_plot, height = 170, width = 180, units = "mm", dpi = 400)
+```
+
+# Correlation between onset age and LDSC results
+
+Add the correlation and significance columns:
+
+```{r}
+df$Correlation <- ifelse(df$GC > 0, "Positive GC", "Negative GC")
+df$Significant <- ifelse(df$PValue < 0.05, "Significant", "Not Significant")
+```
+
+Do the plot:
+
+```{r}
+corr_gc_ado <- ggplot(df, aes(x = ADO_5, y = GC, color = Correlation)) +
+  geom_point(alpha = 0.3, size = 2) +
+  geom_point(data = df, aes(alpha = Significant), size = 2)+
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  geom_smooth(data = df2, method = "lm", se = TRUE, color = "black", size = 0.5) +
+  theme_bw() +
+  annotate("text", x = Inf, y = Inf,
+           label = paste("R =", round(correlation, 2), "\nP =",
+                         format(p_value, scientific = TRUE)), 
+           hjust = 1.1, vjust = 2, size = 3, color = "black")
+# remove legend and other modifications
+corr_gc_ado <- corr_gc_ado + theme(legend.position = "none",
+                     axis.title.x = element_text(size = 7, margin = margin(t = 20), face = "bold", family = "Arial"),
+                     axis.title.y = element_text(size = 7, margin = margin(r = 20), face = "bold", family = "Arial"),
+                     axis.text.y = element_text(size = 7, family = "Arial"),
+                     axis.text.x = element_text(size = 7, family = "Arial"),
+                     plot.margin = margin(t = 5, r = 5, b = 5, l = 5),
+                     axis.line = element_line(colour = "black"),
+                     panel.grid = element_blank())
+# rename x axis label
+corr_gc_ado <- corr_gc_ado + ylab("rg (LDSC)")
+corr_gc_ado <- corr_gc_ado + xlab("Age at disease onset")
+```
+
+```{r}
+ggsave2("./correlation_longevity_GC_ADO5_pvalue.png", corr_gc_ado, height = 100, width = 110, units = "mm", dpi = 400)
+```
+
+Do the plot with FDR significant:
+
+```{r}
+# Filter for significance
+df$SignificantFDR <- ifelse(df$FDR < 0.05, "Significant", "Not Significant")
+df3 <- df %>% filter(FDR < 0.05)
+nrow(df3)
+```
+
+Correlation test:
+
+```{r}
+correlation_result <- cor.test(df3$GC, df3$ADO_5, method = "spearman")
+print(correlation_result)
+correlation <- correlation_result$estimate
+p_value <- correlation_result$p.value
+
+correlation
+p_value
+```
+
+```{r}
+corr_gc_ado2 <- ggplot(df, aes(x = ADO_5, y = GC, color = Correlation)) +
+  geom_point(alpha = 0.3, size = 2) +
+  geom_point(data = df, aes(alpha = SignificantFDR), size = 2)+
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  geom_smooth(data = df3, method = "lm", se = TRUE, color = "black", size = 0.5) +
+  theme_bw() +
+  annotate("text", x = Inf, y = Inf,
+           label = paste("R =", round(correlation, 2), "\nP =",
+                         format(p_value, scientific = TRUE)), 
+           hjust = 1.1, vjust = 2, size = 3, color = "black")
+# remove legend and other modifications
+corr_gc_ado2 <- corr_gc_ado2 + theme(legend.position = "none",
+                     axis.title.x = element_text(size = 7, margin = margin(t = 20), face = "bold", family = "Arial"),
+                     axis.title.y = element_text(size = 7, margin = margin(r = 20), face = "bold", family = "Arial"),
+                     axis.text.y = element_text(size = 7, family = "Arial"),
+                     axis.text.x = element_text(size = 7, family = "Arial"),
+                     plot.margin = margin(t = 5, r = 5, b = 5, l = 5),
+                     axis.line = element_line(colour = "black"),
+                     panel.grid = element_blank())
+# rename x axis label
+corr_gc_ado2 <- corr_gc_ado2 + ylab("rg (LDSC)")
+corr_gc_ado2 <- corr_gc_ado2 + xlab("Age at disease onset")
+```
+
+```{r}
+ggsave2("./correlation_longevity_GC_ADO5_fdr.png", corr_gc_ado2, height = 100, width = 110, units = "mm", dpi = 400)
+```
+
+# Genetic correlations ordered by ADO (VERTICAL)
+
+Add the correlation and significance columns:
+
+```{r}
+df$SignificantFDR <- ifelse(df$FDR < 0.05, "Significant", "Not Significant")
+```
+
+Order the data-frame:
+
+```{r}
+df$DiseaseName <- factor(df$DiseaseName, levels = unique(df$DiseaseName[order(df$GC, decreasing = FALSE)]))
+```
+
+Plot:
+
+```{r}
+subplot1 <- ggplot(df, aes(x = GC, y = DiseaseName, color = Correlation)) +
+  geom_point(alpha = 0.4, size = 1) +
+  geom_point(data = df, aes(alpha = Significant), size = 1) +
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  theme_bw() +
+  scale_y_discrete(position = "left", breaks = df$DiseaseName,
+                     expand = c(-0.005, 1))
+# add error bars
+subplot1 <- subplot1 + geom_errorbar(aes(xmin = GC - GC_SE, xmax = GC + GC_SE,
+                              alpha = Significant), width = 0.5)
+# add vertical dotted line at 0
+subplot1 <- subplot1 + geom_vline(xintercept = 0, linetype = "dotted")
+# set x range from -1 to 1
+subplot1 <- subplot1 + coord_cartesian(xlim = c(-1, 1), ylim = c(1, nrow(df)))
+# remove y axis label and legend
+subplot1 <- subplot1 + theme(axis.title.y = element_blank(), legend.position = "none")
+# rename x axis label
+subplot1 <- subplot1 + xlab("rg")
+subplot1 <- subplot1 + theme(legend.position = "none",
+                 axis.text.y = element_text(hjust = 1, vjust = 0.5,
+                                            size = 7, family = "Arial", color = "black"),
+                 axis.title.x = element_text(size = 7, margin = margin(t = 2), color = "black", family = "Arial", face = "bold"),
+                 axis.title.y = element_blank(),
+                 axis.text.x = element_text(size = 7, family = "Arial", color = "black"),
+                 plot.margin = margin(t = 2, r = 2, b = 2, l = 2),
+                 panel.grid = element_blank(),
+                 axis.line = element_line(color = "black", size = 0.5))
+
+subplot1
+```
+Save:
+
+```{r}
+ggsave("./longevity_gencorr_fdr.png",
+       subplot1, 
+       height = 170, 
+       width = 100, 
+       units = "mm",
+       dpi = 400)
+```

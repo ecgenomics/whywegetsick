@@ -1,0 +1,2069 @@
+---
+title: "Functional Consequences VEP"
+author: "Eva Brigos"
+date: "2025-02-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library("ggpubr")
+library(forcats)
+library(cowplot)
+library(ggrepel)
+```
+
+# Load the dataframes
+
+```{r}
+#setwd("~/Documents")
+
+# Background set
+#NOTE: this file is too large to be included in the GitHub repository. Request the authors.
+vep_output <- read.csv("./common_SNPs_62diseases_background_set.vep.txt", sep = "\t")
+names(vep_output)[1] <- c("rsid")
+
+# Longevity pleiotropies
+longevity_pleios <- read.csv("../data/plifespan_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+
+# Fertility pleiotropies
+fertility_pleios <- read.csv("../data/fertility_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+```
+
+# Filter the background set
+
+```{r}
+# Column CANONICAL == YES
+vep_output <- vep_output %>%
+  filter(CANONICAL == "YES")
+
+# New colum with rsid + Gene
+vep_output <- vep_output %>%
+  mutate(rsid_gene = paste(rsid, Gene, sep = "_"))
+
+# Remove duplicates by rsid_gene column
+vep_output <- vep_output %>%
+  distinct(rsid_gene, .keep_all = TRUE)
+
+# In the normal set we have 36 types of consequences, many of them with almost
+# 0% frequency. I am going to group some of them into the bigger categories.
+vep_output <- vep_output %>%
+  mutate(Consequence_mod = if_else(
+    Consequence == "intron_variant,non_coding_transcript_variant",
+    Consequence,
+    sub(",.*", "", Consequence)
+  ))
+```
+
+# Pie Chart of functional consequences from the background set
+
+Count the number of occurrences by functional consequence category:
+
+```{r}
+consequence_counts <- vep_output %>%
+  group_by(Consequence_mod) %>%
+  summarise(count = n()) %>%
+  # Calculate the proportion (percentage)
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Change the name of Consequence_mod categories if percentage < 0.1:
+
+```{r}
+consequence_counts <- consequence_counts %>%
+  mutate(Consequence_mod = if_else(
+    percentage < 0.1,
+    "Other",
+    Consequence_mod
+  ))
+```
+
+Aggregate the "Other" category:
+
+```{r}
+consequence_counts2 <- consequence_counts %>%
+  group_by(Consequence_mod) %>%
+  summarise(count = sum(count)) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Create the text to plot in the pie chart:
+
+```{r}
+consequence_counts2 <- consequence_counts2 %>%
+  mutate(label_text = paste(Consequence_mod, " (", percentage, "%)", sep = "")) %>%
+  mutate(text = paste(percentage, "%", sep = ""))
+
+# Order descending
+consequence_counts2 <- consequence_counts2 %>%
+  arrange(desc(count))
+
+# Put NA values in text if percentage < 12
+consequence_counts2$text[consequence_counts2$percentage < 12] <- NA
+
+```
+
+Make shorter label names to facilitate plotting:
+
+```{r}
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "intron_variant,non_coding_transcript_variant (14.7%)",
+                                              "intron_variant,non_coding (14.7%)", consequence_counts2$label_text)
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "non_coding_transcript_exon_variant (1.2%)",
+                                              "non_coding_transcript_exon (1.2%)", consequence_counts2$label_text)
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "splice_polypyrimidine_tract_variant (0.1%)",
+                                              "splice_polypyrimidine_tract (0.1%)", consequence_counts2$label_text)
+
+# Category as factor
+consequence_counts2$category <- factor(consequence_counts2$label_text, levels = consequence_counts2$label_text)
+```
+
+Plot:
+
+```{r}
+par(family = "Arial")
+```
+
+
+```{r}
+pie_consequence <- ggplot(consequence_counts2, aes(x = "", y = count, fill = category)) +
+  # Use geom_bar with stat = "identity" and width=1 for a pie layout
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  # Add text labels showing the percentage in the middle of each slice
+  geom_text(aes(label = text),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 5) +
+  # Convert the bar chart to a pie chart using polar coordinates
+  coord_polar(theta = "y", start = 0) +
+  # Remove extra plot elements for a cleaner pie chart
+  theme_void() +
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.box.margin = margin(t = 2, r = 2, b = 2, l = 1)) +
+  scale_fill_brewer(palette = "Set3") +
+  labs(fill = "Functional Consequences")
+```
+
+# Pie Chart of the biotype categories from the background set
+
+Count the number of occurrences by biotype category:
+
+```{r}
+biotype_counts <- vep_output %>%
+  group_by(BIOTYPE) %>%
+  summarise(count = n()) %>%
+  # Calculate the proportion (percentage)
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Change the name of biotype categories if percentage < 0.5:
+
+```{r}
+biotype_counts <- biotype_counts %>%
+  mutate(BIOTYPE = if_else(
+    percentage < 0.5,
+    "Other",
+    BIOTYPE
+  ))
+```
+
+Aggregate the "Other" category:
+
+```{r}
+biotype_counts2 <- biotype_counts %>%
+  group_by(BIOTYPE) %>%
+  summarise(count = sum(count)) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Create the text to plot in the pie chart:
+
+```{r}
+biotype_counts2 <- biotype_counts2 %>%
+  mutate(label_text = paste(BIOTYPE, " (", percentage, "%)", sep = "")) %>%
+  mutate(text = paste(percentage, "%", sep = ""))
+
+# Order descending
+biotype_counts2 <- biotype_counts2 %>%
+  arrange(desc(count))
+
+# Put NA values in text if percentage < 5
+biotype_counts2$text[biotype_counts2$percentage < 5] <- NA
+
+# Category as factor
+biotype_counts2$category <- factor(biotype_counts2$label_text, levels = biotype_counts2$label_text)
+```
+
+Plot:
+
+```{r}
+pie_biotype <- ggplot(biotype_counts2, aes(x = "", y = count, fill = category)) +
+  # Use geom_bar with stat = "identity" and width=1 for a pie layout
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  # Add text labels showing the percentage in the middle of each slice
+  geom_text(aes(label = text),
+            position = position_stack(vjust = 0.5),
+            color = "black", size = 5) +
+  # Convert the bar chart to a pie chart using polar coordinates
+  coord_polar(theta = "y", start = 0) +
+  # Remove extra plot elements for a cleaner pie chart
+  theme_void() +
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.box.margin = margin(t = 2, r = 2, b = 2, l = 1)) +
+  scale_fill_brewer(palette = "Paired") +
+  labs(fill = "Biotypes")
+```
+
+# Aggregate both plots and save
+
+```{r}
+# Create a grid with both plots
+grid_pie <- plot_grid(pie_consequence, pie_biotype,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./background_set_VEPannotations.png", grid_pie, height = 170, width = 170, dpi = 600, units = "mm")
+```
+
+# Do the analysis for the two life-history traits
+
+Get the metadata:
+
+```{r}
+domains <- read.csv("./domain_name_acronym_62diseases.csv", sep = ";")
+names(domains)[1] <- c("disease_code")
+```
+
+Slice the background dataframe with relevant columns:
+
+```{r}
+info_background <- vep_output %>%
+  select(rsid, Consequence, BIOTYPE, SYMBOL, Gene)
+```
+
+## Longevity
+
+Merge the pleiotropy results with the background set. If an RSID has two or more
+consequences (due to different gene isoforms for example), then all of them will
+appear in the data-frame.
+
+```{r}
+longevity <- merge(longevity_pleios, info_background, by = "rsid")
+```
+
+### Longevity by domain
+
+Merge with the domains:
+
+```{r}
+longevity <- merge(longevity, domains, by = "disease_code")
+```
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+domain_dict <- c("Diseases of the circulatory system" = "Circulatory system",
+                  "Diseases of the ear or mastoid process" = "Ear or mastoid process",
+                  "Diseases of the genitourinary system" = "Genitourinary system",
+                  "Diseases of the nervous system" = "Nervous system",
+                  "Diseases of the skin" = "Diseases of the skin",
+                  "Mental, behavioural or neurodevelopmental disorders" = "Mental, behavioural\nor neurodevelopmental",
+                  "Diseases of the digestive system" = "Digestive system",
+                  "Diseases of the eye and adnexa" = "Eye and adnexa",
+                  "Diseases of the musculoskeletal system or connective tissue" = "Musculoskeletal system\nor connective tissue",
+                  "Diseases of the respiratory system" = "Respiratory system",
+                  "Endocrine, nutritional or metabolic diseases" = "Endocrine, nutritional\nor metabolic",
+                  "Neoplasms" = "Neoplasms")
+
+# Create new column with the shorter version
+longevity$DomainShort <- domain_dict[longevity$Domain]
+```
+
+Create new data-frame centered in the disease domains:
+
+```{r}
+longevity_domain <- longevity %>%
+  group_by(DomainShort) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+longevity_domain <- longevity_domain %>%
+  arrange(desc(total))
+longevity_domain$order <- c(1:11)
+
+# Transform data for plotting
+longevity_domain_long <- longevity_domain %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+longevity_domain_long <- longevity_domain_long[longevity_domain_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by domain**:
+
+```{r}
+L1 <- ggplot(longevity_domain_long, aes(x = reorder(DomainShort, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease Domain", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(longevity_domain_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_domain_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_domain_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_domain_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_domain_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_domain_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_domain_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_domain_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_domain_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_domain_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_domain_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_domain_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_domain_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_domain_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_domain_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_domain_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_domain_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_domain_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_domain_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_domain_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_domain_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_domain_long[22,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L1 <- L1 + annotate("text", x = i, y = 15, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L1 <- L1 + annotate("text", x = i, y = pos+neg+15, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_longevity_domain <- longevity_domain %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         disease_domain = factor(DomainShort, levels = longevity_domain$DomainShort))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_longevity_domain$round_proportion <- round(proportion_longevity_domain$proportion, 2)
+```
+
+Replace NA values with zero using dplyr:
+
+```{r}
+proportion_longevity_domain <- proportion_longevity_domain %>%
+  mutate_all(~ ifelse(is.nan(.), 0, .))
+```
+
+Plot the proportions:
+
+```{r}
+L2 <- ggplot(proportion_longevity_domain,
+             aes(x = reorder(DomainShort, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease Domain", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_longevity_domain$DomainShort)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_longevity_domain[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_longevity_domain[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_longevity_domain[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_longevity_domain[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_longevity_domain[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_longevity_domain[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_longevity_domain[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_longevity_domain[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_longevity_domain[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_longevity_domain[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_longevity_domain[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_longevity_domain[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_longevity_domain[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_longevity_domain[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_longevity_domain[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_longevity_domain[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_longevity_domain[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_longevity_domain[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_longevity_domain[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_longevity_domain[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_longevity_domain[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_longevity_domain[22,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L2 <- L2 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L2 <- L2 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_longevity <- plot_grid(L1, L2,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./longevity_by_domain_annotations.png", grid_longevity, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Longevity by functional consequence
+
+Create new data-frame centered in the functional consequence:
+
+```{r}
+longevity_consequence <- longevity %>%
+  group_by(Consequence) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+conseq_dict <- c("non_coding_transcript_exon_variant" = "non_coding_transcript\nexon_variant",
+                  "splice_donor_region_variant,intron_variant" = "splice_donor_region_variant\nintron_variant",
+                  "intron_variant,non_coding_transcript_variant" = "intron_variant\nnon_coding_transcript",
+                  "splice_region_variant,splice_polypyrimidine_tract_variant,intron_variant" = "splice_region_variant\nsplice_polypyrimidine_tract\nintron_variant")
+
+# Create new column with the shorter version
+longevity_consequence <- longevity_consequence %>%
+  mutate(
+    Consequence = if_else(
+      Consequence %in% names(conseq_dict),
+      conseq_dict[Consequence],
+      Consequence
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+longevity_consequence <- longevity_consequence %>%
+  arrange(desc(total))
+longevity_consequence$order <- c(1:12)
+
+# Transform data for plotting
+longevity_consequence_long <- longevity_consequence %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+longevity_consequence_long <- longevity_consequence_long[longevity_consequence_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+L3 <- ggplot(longevity_consequence_long, aes(x = reorder(Consequence, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional Consequence", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(longevity_consequence_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_consequence_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_consequence_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_consequence_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_consequence_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_consequence_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_consequence_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_consequence_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_consequence_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_consequence_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_consequence_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_consequence_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_consequence_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_consequence_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_consequence_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_consequence_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_consequence_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_consequence_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_consequence_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_consequence_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_consequence_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_consequence_long[22,"count"])
+pos_dom12 <- as.numeric(longevity_consequence_long[23,"count"])
+neg_dom12 <- as.numeric(longevity_consequence_long[24,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:12) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L3 <- L3 + annotate("text", x = i, y = 15, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L3 <- L3 + annotate("text", x = i, y = pos+neg+25, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_longevity_consequence <- longevity_consequence %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         consequence_order = factor(Consequence, levels = longevity_consequence$Consequence))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_longevity_consequence$round_proportion <- round(proportion_longevity_consequence$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+L4 <- ggplot(proportion_longevity_consequence,
+             aes(x = reorder(Consequence, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional Consequence", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_longevity_consequence$Consequence)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_longevity_consequence[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_longevity_consequence[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_longevity_consequence[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_longevity_consequence[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_longevity_consequence[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_longevity_consequence[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_longevity_consequence[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_longevity_consequence[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_longevity_consequence[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_longevity_consequence[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_longevity_consequence[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_longevity_consequence[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_longevity_consequence[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_longevity_consequence[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_longevity_consequence[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_longevity_consequence[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_longevity_consequence[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_longevity_consequence[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_longevity_consequence[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_longevity_consequence[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_longevity_consequence[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_longevity_consequence[22,"round_proportion"]*100)
+pos_dom12 <- as.numeric(proportion_longevity_consequence[23,"round_proportion"]*100)
+neg_dom12 <- as.numeric(proportion_longevity_consequence[24,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:12) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L4 <- L4 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L4 <- L4 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_longevity2 <- plot_grid(L3, L4,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./longevity_by_consequence.png", grid_longevity2, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Longevity by biotype
+
+Create new data-frame centered in the biotype:
+
+```{r}
+longevity_biotype <- longevity %>%
+  group_by(BIOTYPE) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+biotype_dict <- c("processed_pseudogene" = "processed\npseudogene",
+                  "processed_transcript" = "processed\ntranscript",
+                  "transcribed_unprocessed_pseudogene" = "transcribed\nunprocessed_pseudogene",
+                  "unitary_pseudogene" = "unitary\npseudogene",
+                  "unprocessed_pseudogene" = "unprocessed\npseudogene")
+
+# Create new column with the shorter version
+longevity_biotype <- longevity_biotype %>%
+  mutate(
+    BIOTYPE = if_else(
+      BIOTYPE %in% names(biotype_dict),
+      biotype_dict[BIOTYPE],
+      BIOTYPE
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+longevity_biotype <- longevity_biotype %>%
+  arrange(desc(total))
+longevity_biotype$order <- c(1:15)
+
+# Transform data for plotting
+longevity_biotype_long <- longevity_biotype %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+longevity_biotype_long <- longevity_biotype_long[longevity_biotype_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+L5 <- ggplot(longevity_biotype_long, aes(x = reorder(BIOTYPE, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(longevity_biotype_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_biotype_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_biotype_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_biotype_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_biotype_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_biotype_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_biotype_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_biotype_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_biotype_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_biotype_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_biotype_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_biotype_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_biotype_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_biotype_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_biotype_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_biotype_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_biotype_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_biotype_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_biotype_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_biotype_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_biotype_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_biotype_long[22,"count"])
+pos_dom12 <- as.numeric(longevity_biotype_long[23,"count"])
+neg_dom12 <- as.numeric(longevity_biotype_long[24,"count"])
+pos_dom13 <- as.numeric(longevity_biotype_long[25,"count"])
+neg_dom13 <- as.numeric(longevity_biotype_long[26,"count"])
+pos_dom14 <- as.numeric(longevity_biotype_long[27,"count"])
+neg_dom14 <- as.numeric(longevity_biotype_long[28,"count"])
+pos_dom15 <- as.numeric(longevity_biotype_long[29,"count"])
+neg_dom15 <- as.numeric(longevity_biotype_long[30,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:15) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L5 <- L5 + annotate("text", x = i, y = 25, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L5 <- L5 + annotate("text", x = i, y = pos+neg+60, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_longevity_biotype <- longevity_biotype %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         biotype_order = factor(BIOTYPE, levels = longevity_biotype$BIOTYPE))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_longevity_biotype$round_proportion <- round(proportion_longevity_biotype$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+L6 <- ggplot(proportion_longevity_biotype,
+             aes(x = reorder(BIOTYPE, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_longevity_biotype$BIOTYPE)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_longevity_biotype[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_longevity_biotype[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_longevity_biotype[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_longevity_biotype[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_longevity_biotype[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_longevity_biotype[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_longevity_biotype[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_longevity_biotype[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_longevity_biotype[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_longevity_biotype[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_longevity_biotype[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_longevity_biotype[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_longevity_biotype[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_longevity_biotype[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_longevity_biotype[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_longevity_biotype[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_longevity_biotype[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_longevity_biotype[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_longevity_biotype[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_longevity_biotype[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_longevity_biotype[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_longevity_biotype[22,"round_proportion"]*100)
+pos_dom12 <- as.numeric(proportion_longevity_biotype[23,"round_proportion"]*100)
+neg_dom12 <- as.numeric(proportion_longevity_biotype[24,"round_proportion"]*100)
+pos_dom13 <- as.numeric(proportion_longevity_biotype[25,"round_proportion"]*100)
+neg_dom13 <- as.numeric(proportion_longevity_biotype[26,"round_proportion"]*100)
+pos_dom14 <- as.numeric(proportion_longevity_biotype[27,"round_proportion"]*100)
+neg_dom14 <- as.numeric(proportion_longevity_biotype[28,"round_proportion"]*100)
+pos_dom15 <- as.numeric(proportion_longevity_biotype[29,"round_proportion"]*100)
+neg_dom15 <- as.numeric(proportion_longevity_biotype[30,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:15) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L6 <- L6 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L6 <- L6 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_longevity3 <- plot_grid(L5, L6,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./longevity_by_biotype.png", grid_longevity3, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Longevity by chromosome
+
+Create new data-frame centered in the biotype:
+
+```{r}
+longevity_chr <- longevity %>%
+  group_by(chr) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+longevity_chr <- longevity_chr %>%
+  arrange(chr)
+longevity_chr$order <- c(1:22)
+
+# Transform data for plotting
+longevity_chr_long <- longevity_chr %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+longevity_chr_long <- longevity_chr_long[longevity_chr_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+L7 <- ggplot(longevity_chr_long, aes(x = reorder(chr, chr),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,10,10), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(longevity_chr_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_chr_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_chr_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_chr_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_chr_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_chr_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_chr_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_chr_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_chr_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_chr_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_chr_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_chr_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_chr_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_chr_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_chr_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_chr_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_chr_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_chr_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_chr_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_chr_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_chr_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_chr_long[22,"count"])
+pos_dom12 <- as.numeric(longevity_chr_long[23,"count"])
+neg_dom12 <- as.numeric(longevity_chr_long[24,"count"])
+pos_dom13 <- as.numeric(longevity_chr_long[25,"count"])
+neg_dom13 <- as.numeric(longevity_chr_long[26,"count"])
+pos_dom14 <- as.numeric(longevity_chr_long[27,"count"])
+neg_dom14 <- as.numeric(longevity_chr_long[28,"count"])
+pos_dom15 <- as.numeric(longevity_chr_long[29,"count"])
+neg_dom15 <- as.numeric(longevity_chr_long[30,"count"])
+pos_dom16 <- as.numeric(longevity_chr_long[31,"count"])
+neg_dom16 <- as.numeric(longevity_chr_long[32,"count"])
+pos_dom17 <- as.numeric(longevity_chr_long[33,"count"])
+neg_dom17 <- as.numeric(longevity_chr_long[34,"count"])
+pos_dom18 <- as.numeric(longevity_chr_long[35,"count"])
+neg_dom18 <- as.numeric(longevity_chr_long[36,"count"])
+pos_dom19 <- as.numeric(longevity_chr_long[37,"count"])
+neg_dom19 <- as.numeric(longevity_chr_long[38,"count"])
+pos_dom20 <- as.numeric(longevity_chr_long[39,"count"])
+neg_dom20 <- as.numeric(longevity_chr_long[40,"count"])
+pos_dom21 <- as.numeric(longevity_chr_long[41,"count"])
+neg_dom21 <- as.numeric(longevity_chr_long[42,"count"])
+pos_dom22 <- as.numeric(longevity_chr_long[43,"count"])
+neg_dom22 <- as.numeric(longevity_chr_long[44,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:22) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L7 <- L7 + annotate("text", x = i, y = 10, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L7 <- L7 + annotate("text", x = i, y = pos+neg+20, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_longevity_chr <- longevity_chr %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         chr_order = factor(chr, levels = longevity_chr$chr))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_longevity_chr$round_proportion <- round(proportion_longevity_chr$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+L8 <- ggplot(proportion_longevity_chr,
+             aes(x = reorder(chr, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,10,10), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_longevity_chr$chr)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_longevity_chr[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_longevity_chr[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_longevity_chr[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_longevity_chr[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_longevity_chr[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_longevity_chr[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_longevity_chr[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_longevity_chr[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_longevity_chr[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_longevity_chr[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_longevity_chr[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_longevity_chr[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_longevity_chr[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_longevity_chr[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_longevity_chr[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_longevity_chr[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_longevity_chr[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_longevity_chr[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_longevity_chr[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_longevity_chr[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_longevity_chr[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_longevity_chr[22,"round_proportion"]*100)
+pos_dom12 <- as.numeric(proportion_longevity_chr[23,"round_proportion"]*100)
+neg_dom12 <- as.numeric(proportion_longevity_chr[24,"round_proportion"]*100)
+pos_dom13 <- as.numeric(proportion_longevity_chr[25,"round_proportion"]*100)
+neg_dom13 <- as.numeric(proportion_longevity_chr[26,"round_proportion"]*100)
+pos_dom14 <- as.numeric(proportion_longevity_chr[27,"round_proportion"]*100)
+neg_dom14 <- as.numeric(proportion_longevity_chr[28,"round_proportion"]*100)
+pos_dom15 <- as.numeric(proportion_longevity_chr[29,"round_proportion"]*100)
+neg_dom15 <- as.numeric(proportion_longevity_chr[30,"round_proportion"]*100)
+pos_dom16 <- as.numeric(proportion_longevity_chr[31,"round_proportion"]*100)
+neg_dom16 <- as.numeric(proportion_longevity_chr[32,"round_proportion"]*100)
+pos_dom17 <- as.numeric(proportion_longevity_chr[33,"round_proportion"]*100)
+neg_dom17 <- as.numeric(proportion_longevity_chr[34,"round_proportion"]*100)
+pos_dom18 <- as.numeric(proportion_longevity_chr[35,"round_proportion"]*100)
+neg_dom18 <- as.numeric(proportion_longevity_chr[36,"round_proportion"]*100)
+pos_dom19 <- as.numeric(proportion_longevity_chr[37,"round_proportion"]*100)
+neg_dom19 <- as.numeric(proportion_longevity_chr[38,"round_proportion"]*100)
+pos_dom20 <- as.numeric(proportion_longevity_chr[39,"round_proportion"]*100)
+neg_dom20 <- as.numeric(proportion_longevity_chr[40,"round_proportion"]*100)
+pos_dom21 <- as.numeric(proportion_longevity_chr[41,"round_proportion"]*100)
+neg_dom21 <- as.numeric(proportion_longevity_chr[42,"round_proportion"]*100)
+pos_dom22 <- as.numeric(proportion_longevity_chr[43,"round_proportion"]*100)
+neg_dom22 <- as.numeric(proportion_longevity_chr[44,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:22) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L8 <- L8 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    L8 <- L8 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_longevity4 <- plot_grid(L7, L8,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./longevity_by_chr.png", grid_longevity4, height = 150, width = 170, units = "mm", dpi = 400)
+```
+
+## Fertility
+
+Merge the pleiotropy results with the background set. If an RSID has two or more
+consequences (due to different gene isoforms for example), then all of them will
+appear in the data-frame.
+
+```{r}
+fertility <- merge(fertility_pleios, info_background, by = "rsid")
+```
+
+Merge with the domains:
+
+```{r}
+fertility <- merge(fertility, domains, by = "disease_code")
+```
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+fertility$DomainShort <- domain_dict[fertility$Domain]
+```
+
+Create new data-frame centered in the disease domains:
+
+```{r}
+fertility_domain <- fertility %>%
+  group_by(DomainShort) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+fertility_domain <- fertility_domain %>%
+  arrange(desc(total))
+fertility_domain$order <- c(1:11)
+
+# Transform data for plotting
+fertility_domain_long <- fertility_domain %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+fertility_domain_long <- fertility_domain_long[fertility_domain_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by domain**:
+
+```{r}
+F1 <- ggplot(fertility_domain_long, aes(x = reorder(DomainShort, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease Domain", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(fertility_domain_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_domain_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_domain_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_domain_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_domain_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_domain_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_domain_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_domain_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_domain_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_domain_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_domain_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_domain_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_domain_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_domain_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_domain_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_domain_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_domain_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_domain_long[18,"count"])
+pos_dom10 <- as.numeric(fertility_domain_long[19,"count"])
+neg_dom10 <- as.numeric(fertility_domain_long[20,"count"])
+pos_dom11 <- as.numeric(fertility_domain_long[21,"count"])
+neg_dom11 <- as.numeric(fertility_domain_long[22,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F1 <- F1 + annotate("text", x = i, y = 5, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F1 <- F1 + annotate("text", x = i, y = pos+neg+5, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_fertility_domain <- fertility_domain %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         disease_domain = factor(DomainShort, levels = fertility_domain$DomainShort))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_fertility_domain$round_proportion <- round(proportion_fertility_domain$proportion, 2)
+```
+
+Replace NA values with zero using dplyr:
+
+```{r}
+proportion_fertility_domain <- proportion_fertility_domain %>%
+  mutate_all(~ ifelse(is.nan(.), 0, .))
+```
+
+Plot the proportions:
+
+```{r}
+F2 <- ggplot(proportion_fertility_domain,
+             aes(x = reorder(DomainShort, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease Domain", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_fertility_domain$DomainShort)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_fertility_domain[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_fertility_domain[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_fertility_domain[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_fertility_domain[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_fertility_domain[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_fertility_domain[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_fertility_domain[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_fertility_domain[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_fertility_domain[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_fertility_domain[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_fertility_domain[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_fertility_domain[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_fertility_domain[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_fertility_domain[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_fertility_domain[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_fertility_domain[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_fertility_domain[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_fertility_domain[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_fertility_domain[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_fertility_domain[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_fertility_domain[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_fertility_domain[22,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F2 <- F2 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F2 <- F2 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_fertility <- plot_grid(F1, F2,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./fertility_by_domain_annotations.png", grid_fertility, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Fertility by functional consequence
+
+Create new data-frame centered in the functional consequence:
+
+```{r}
+fertility_consequence <- fertility %>%
+  group_by(Consequence) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+conseq_dict <- c("intron_variant,non_coding_transcript_variant" = "intron_variant\nnon_coding_transcript",
+                  "non_coding_transcript_exon_variant" = "non_coding_transcript\nexon_variant")
+
+# Create new column with the shorter version
+fertility_consequence <- fertility_consequence %>%
+  mutate(
+    Consequence = if_else(
+      Consequence %in% names(conseq_dict),
+      conseq_dict[Consequence],
+      Consequence
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+fertility_consequence <- fertility_consequence %>%
+  arrange(desc(total))
+fertility_consequence$order <- c(1:9)
+
+# Transform data for plotting
+fertility_consequence_long <- fertility_consequence %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+fertility_consequence_long <- fertility_consequence_long[fertility_consequence_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+F3 <- ggplot(fertility_consequence_long, aes(x = reorder(Consequence, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional Consequence", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(fertility_consequence_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_consequence_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_consequence_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_consequence_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_consequence_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_consequence_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_consequence_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_consequence_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_consequence_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_consequence_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_consequence_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_consequence_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_consequence_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_consequence_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_consequence_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_consequence_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_consequence_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_consequence_long[18,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:9) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F3 <- F3 + annotate("text", x = i, y = 5, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F3 <- F3 + annotate("text", x = i, y = pos+neg+12, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_fertility_consequence <- fertility_consequence %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         consequence_order = factor(Consequence, levels = fertility_consequence$Consequence))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_fertility_consequence$round_proportion <- round(proportion_fertility_consequence$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+F4 <- ggplot(proportion_fertility_consequence,
+             aes(x = reorder(Consequence, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional Consequence", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_fertility_consequence$Consequence)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_fertility_consequence[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_fertility_consequence[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_fertility_consequence[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_fertility_consequence[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_fertility_consequence[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_fertility_consequence[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_fertility_consequence[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_fertility_consequence[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_fertility_consequence[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_fertility_consequence[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_fertility_consequence[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_fertility_consequence[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_fertility_consequence[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_fertility_consequence[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_fertility_consequence[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_fertility_consequence[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_fertility_consequence[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_fertility_consequence[18,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:9) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F4 <- F4 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F4 <- F4 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_fertility2 <- plot_grid(F3, F4,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./fertility_by_consequence.png", grid_fertility2, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Fertility by biotype
+
+Create new data-frame centered in the biotype:
+
+```{r}
+fertility_biotype <- fertility %>%
+  group_by(BIOTYPE) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+biotype_dict <- c("processed_pseudogene" = "processed\npseudogene",
+                  "processed_transcript" = "processed\ntranscript",
+                  "transcribed_processed_pseudogene" = "transcribed\nprocessed_pseudogene")
+
+# Create new column with the shorter version
+fertility_biotype <- fertility_biotype %>%
+  mutate(
+    BIOTYPE = if_else(
+      BIOTYPE %in% names(biotype_dict),
+      biotype_dict[BIOTYPE],
+      BIOTYPE
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+fertility_biotype <- fertility_biotype %>%
+  arrange(desc(total))
+fertility_biotype$order <- c(1:11)
+
+# Transform data for plotting
+fertility_biotype_long <- fertility_biotype %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+fertility_biotype_long <- fertility_biotype_long[fertility_biotype_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+F5 <- ggplot(fertility_biotype_long, aes(x = reorder(BIOTYPE, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(fertility_biotype_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_biotype_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_biotype_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_biotype_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_biotype_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_biotype_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_biotype_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_biotype_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_biotype_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_biotype_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_biotype_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_biotype_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_biotype_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_biotype_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_biotype_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_biotype_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_biotype_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_biotype_long[18,"count"])
+pos_dom10 <- as.numeric(fertility_biotype_long[19,"count"])
+neg_dom10 <- as.numeric(fertility_biotype_long[20,"count"])
+pos_dom11 <- as.numeric(fertility_biotype_long[21,"count"])
+neg_dom11 <- as.numeric(fertility_biotype_long[22,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F5 <- F5 + annotate("text", x = i, y = 10, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F5 <- F5 + annotate("text", x = i, y = pos+neg+25, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_fertility_biotype <- fertility_biotype %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         biotype_order = factor(BIOTYPE, levels = fertility_biotype$BIOTYPE))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_fertility_biotype$round_proportion <- round(proportion_fertility_biotype$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+F6 <- ggplot(proportion_fertility_biotype,
+             aes(x = reorder(BIOTYPE, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(20,20,5,20), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_fertility_biotype$BIOTYPE)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_fertility_biotype[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_fertility_biotype[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_fertility_biotype[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_fertility_biotype[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_fertility_biotype[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_fertility_biotype[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_fertility_biotype[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_fertility_biotype[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_fertility_biotype[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_fertility_biotype[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_fertility_biotype[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_fertility_biotype[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_fertility_biotype[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_fertility_biotype[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_fertility_biotype[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_fertility_biotype[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_fertility_biotype[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_fertility_biotype[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_fertility_biotype[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_fertility_biotype[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_fertility_biotype[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_fertility_biotype[22,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F6 <- F6 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F6 <- F6 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_fertility3 <- plot_grid(F5, F6,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./fertility_by_biotype.png", grid_fertility3, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+### Fertility by chromosome
+
+Create new data-frame centered in the biotype:
+
+```{r}
+fertility_chr <- fertility %>%
+  group_by(chr) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+There are no pleiotropies in chromosome 21 with fertility:
+
+```{r}
+fertility_chr <- add_row(fertility_chr, chr = 21,
+                         total_positive = 0,
+                         total_negative = 0,
+                         total = 0,
+                         proportion_positive = 0,
+                         proportion_negative = 0)
+```
+
+Format the data for plotting:
+
+```{r}
+# Re-order by total counts
+fertility_chr <- fertility_chr %>%
+  arrange(chr)
+fertility_chr$order <- c(1:22)
+
+# Transform data for plotting
+fertility_chr_long <- fertility_chr %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+# Keep only positive and negative counts
+fertility_chr_long <- fertility_chr_long[fertility_chr_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+F7 <- ggplot(fertility_chr_long, aes(x = reorder(chr, chr),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Number of Pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,10,10), # (top, right, bottom, left)
+        panel.grid = element_blank())
+
+# Describe the number of pleiotropies
+pos_dom1 <- as.numeric(fertility_chr_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_chr_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_chr_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_chr_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_chr_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_chr_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_chr_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_chr_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_chr_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_chr_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_chr_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_chr_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_chr_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_chr_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_chr_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_chr_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_chr_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_chr_long[18,"count"])
+pos_dom10 <- as.numeric(fertility_chr_long[19,"count"])
+neg_dom10 <- as.numeric(fertility_chr_long[20,"count"])
+pos_dom11 <- as.numeric(fertility_chr_long[21,"count"])
+neg_dom11 <- as.numeric(fertility_chr_long[22,"count"])
+pos_dom12 <- as.numeric(fertility_chr_long[23,"count"])
+neg_dom12 <- as.numeric(fertility_chr_long[24,"count"])
+pos_dom13 <- as.numeric(fertility_chr_long[25,"count"])
+neg_dom13 <- as.numeric(fertility_chr_long[26,"count"])
+pos_dom14 <- as.numeric(fertility_chr_long[27,"count"])
+neg_dom14 <- as.numeric(fertility_chr_long[28,"count"])
+pos_dom15 <- as.numeric(fertility_chr_long[29,"count"])
+neg_dom15 <- as.numeric(fertility_chr_long[30,"count"])
+pos_dom16 <- as.numeric(fertility_chr_long[31,"count"])
+neg_dom16 <- as.numeric(fertility_chr_long[32,"count"])
+pos_dom17 <- as.numeric(fertility_chr_long[33,"count"])
+neg_dom17 <- as.numeric(fertility_chr_long[34,"count"])
+pos_dom18 <- as.numeric(fertility_chr_long[35,"count"])
+neg_dom18 <- as.numeric(fertility_chr_long[36,"count"])
+pos_dom19 <- as.numeric(fertility_chr_long[37,"count"])
+neg_dom19 <- as.numeric(fertility_chr_long[38,"count"])
+pos_dom20 <- as.numeric(fertility_chr_long[39,"count"])
+neg_dom20 <- as.numeric(fertility_chr_long[40,"count"])
+pos_dom21 <- as.numeric(fertility_chr_long[41,"count"])
+neg_dom21 <- as.numeric(fertility_chr_long[42,"count"])
+pos_dom22 <- as.numeric(fertility_chr_long[43,"count"])
+neg_dom22 <- as.numeric(fertility_chr_long[44,"count"])
+
+# Add text with the number of pleiotropies
+for (i in 1:22) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F7 <- F7 + annotate("text", x = i, y = 5, label = as.character(pos), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F7 <- F7 + annotate("text", x = i, y = pos+neg+10, label = as.character(neg), size = 3, color = "black")
+  }
+}
+```
+
+Transform data for proportion plotting
+
+```{r}
+proportion_fertility_chr <- fertility_chr %>%
+  pivot_longer(cols = starts_with("proportion"), names_to = "type", values_to = "proportion") %>%
+  mutate(type = recode(type, proportion_positive = "Positive", proportion_negative = "Negative"),
+         chr_order = factor(chr, levels = fertility_chr$chr))
+```
+
+Round the proportions for 2 decimals:
+
+```{r}
+proportion_fertility_chr$round_proportion <- round(proportion_fertility_chr$proportion, 2)
+```
+
+Plot the proportions:
+
+```{r}
+F8 <- ggplot(proportion_fertility_chr,
+             aes(x = reorder(chr, order),
+                 y = proportion*100,
+                 fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Chromosome", y = "Proportion of Pleiotropies", fill = "Type") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Arial", color = "black"),
+        axis.text.x = element_text(size = 7),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,10,10), # (top, right, bottom, left)
+        panel.grid = element_blank()) +
+  scale_x_discrete(limits = rev(levels(proportion_fertility_chr$chr)))
+
+# Create the variables with the proportions
+pos_dom1 <- as.numeric(proportion_fertility_chr[1,"round_proportion"]*100)
+neg_dom1 <- as.numeric(proportion_fertility_chr[2,"round_proportion"]*100)
+pos_dom2 <- as.numeric(proportion_fertility_chr[3,"round_proportion"]*100)
+neg_dom2 <- as.numeric(proportion_fertility_chr[4,"round_proportion"]*100)
+pos_dom3 <- as.numeric(proportion_fertility_chr[5,"round_proportion"]*100)
+neg_dom3 <- as.numeric(proportion_fertility_chr[6,"round_proportion"]*100)
+pos_dom4 <- as.numeric(proportion_fertility_chr[7,"round_proportion"]*100)
+neg_dom4 <- as.numeric(proportion_fertility_chr[8,"round_proportion"]*100)
+pos_dom5 <- as.numeric(proportion_fertility_chr[9,"round_proportion"]*100)
+neg_dom5 <- as.numeric(proportion_fertility_chr[10,"round_proportion"]*100)
+pos_dom6 <- as.numeric(proportion_fertility_chr[11,"round_proportion"]*100)
+neg_dom6 <- as.numeric(proportion_fertility_chr[12,"round_proportion"]*100)
+pos_dom7 <- as.numeric(proportion_fertility_chr[13,"round_proportion"]*100)
+neg_dom7 <- as.numeric(proportion_fertility_chr[14,"round_proportion"]*100)
+pos_dom8 <- as.numeric(proportion_fertility_chr[15,"round_proportion"]*100)
+neg_dom8 <- as.numeric(proportion_fertility_chr[16,"round_proportion"]*100)
+pos_dom9 <- as.numeric(proportion_fertility_chr[17,"round_proportion"]*100)
+neg_dom9 <- as.numeric(proportion_fertility_chr[18,"round_proportion"]*100)
+pos_dom10 <- as.numeric(proportion_fertility_chr[19,"round_proportion"]*100)
+neg_dom10 <- as.numeric(proportion_fertility_chr[20,"round_proportion"]*100)
+pos_dom11 <- as.numeric(proportion_fertility_chr[21,"round_proportion"]*100)
+neg_dom11 <- as.numeric(proportion_fertility_chr[22,"round_proportion"]*100)
+pos_dom12 <- as.numeric(proportion_fertility_chr[23,"round_proportion"]*100)
+neg_dom12 <- as.numeric(proportion_fertility_chr[24,"round_proportion"]*100)
+pos_dom13 <- as.numeric(proportion_fertility_chr[25,"round_proportion"]*100)
+neg_dom13 <- as.numeric(proportion_fertility_chr[26,"round_proportion"]*100)
+pos_dom14 <- as.numeric(proportion_fertility_chr[27,"round_proportion"]*100)
+neg_dom14 <- as.numeric(proportion_fertility_chr[28,"round_proportion"]*100)
+pos_dom15 <- as.numeric(proportion_fertility_chr[29,"round_proportion"]*100)
+neg_dom15 <- as.numeric(proportion_fertility_chr[30,"round_proportion"]*100)
+pos_dom16 <- as.numeric(proportion_fertility_chr[31,"round_proportion"]*100)
+neg_dom16 <- as.numeric(proportion_fertility_chr[32,"round_proportion"]*100)
+pos_dom17 <- as.numeric(proportion_fertility_chr[33,"round_proportion"]*100)
+neg_dom17 <- as.numeric(proportion_fertility_chr[34,"round_proportion"]*100)
+pos_dom18 <- as.numeric(proportion_fertility_chr[35,"round_proportion"]*100)
+neg_dom18 <- as.numeric(proportion_fertility_chr[36,"round_proportion"]*100)
+pos_dom19 <- as.numeric(proportion_fertility_chr[37,"round_proportion"]*100)
+neg_dom19 <- as.numeric(proportion_fertility_chr[38,"round_proportion"]*100)
+pos_dom20 <- as.numeric(proportion_fertility_chr[39,"round_proportion"]*100)
+neg_dom20 <- as.numeric(proportion_fertility_chr[40,"round_proportion"]*100)
+pos_dom21 <- as.numeric(proportion_fertility_chr[41,"round_proportion"]*100)
+neg_dom21 <- as.numeric(proportion_fertility_chr[42,"round_proportion"]*100)
+pos_dom22 <- as.numeric(proportion_fertility_chr[43,"round_proportion"]*100)
+neg_dom22 <- as.numeric(proportion_fertility_chr[44,"round_proportion"]*100)
+
+# Add text with the number of pleiotropies
+for (i in 1:22) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F8 <- F8 + annotate("text", x = i, y = pos+3, label = paste(as.character(pos), "%", sep = ""), size = 3, color = "black")
+  }
+  if (!(neg == 0)) {
+    F8 <- F8 + annotate("text", x = i, y = pos+neg+3, label = paste(as.character(neg), "%", sep = ""), size = 3, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+# Create a grid with both plots
+grid_fertility4 <- plot_grid(F7, F8,
+                      ncol = 1,
+                      labels = c("a", "b"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Arial",
+                      label_size = 10,
+                      align = "hv",   # Align horizontally and vertically
+                      rel_widths = c(1, 1))
+
+ggsave("./fertility_by_chr.png", grid_fertility4, height = 150, width = 170, units = "mm", dpi = 400)
+```
+
+# Prepare the gene list for the enrichment analysis
+
+I need a text file with one gene per line.
+
+1. Gene list of the background set.
+2. Gene list of the positive pleiotropies with longevity.
+3. Gene list of the negative pleiotropies with longevity.
+4. Gene list of the positive pleiotropies with fertility.
+5. Gene list of the negative pleiotropies with fertility.
+
+```{r}
+# Background set
+background_set <- unique(c(info_background$Gene))
+
+# Longevity
+positive_longevity <- unique(c(longevity$Gene[longevity$pleiotropy_sign == "positive"]))
+negative_longevity <- unique(c(longevity$Gene[longevity$pleiotropy_sign == "negative"]))
+
+# Fertility
+positive_fertility <- unique(c(fertility$Gene[fertility$pleiotropy_sign == "positive"]))
+negative_fertility <- unique(c(fertility$Gene[fertility$pleiotropy_sign == "negative"]))
+```
+
+Save into a text file, one per line:
+
+```{r, eval=FALSE}
+# Background set
+write.table(background_set, file = "./background_gene_set.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+# Longevity
+write.table(positive_longevity, file = "./positive_longevity_gene_set.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(negative_longevity, file = "./negative_longevity_gene_set.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+
+# Fertility
+write.table(positive_fertility, file = "./positive_fertility_gene_set.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+write.table(negative_fertility, file = "./negative_fertility_gene_set.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
+```
+
+# Some measures for each trait
+
+Number of positive and negative pleiotropies for longevity:
+
+```{r}
+table(longevity_pleios$pleiotropy_sign)
+```
+
+For fertility:
+
+```{r}
+table(fertility_pleios$pleiotropy_sign)
+```
+
+Common pleiotropies between the two sets:
+
+```{r}
+subset_f <- fertility_pleios %>%
+  select(rsid, zscore_fertility_gwas, zscore_disease_gwas, disease_code, pleiotropy_sign)
+names(subset_f)[4:5] <- c("disease_with_fertility" ,"pleiotropy_sign_fertility")
+
+subset_l <- longevity_pleios %>%
+  select(rsid, zscore_longevity_gwas, disease_code, pleiotropy_sign)
+names(subset_l)[3:4] <- c("disease_with_longevity", "pleiotropy_sign_longevity")
+
+# Merge
+common_pleios <- merge(subset_f, subset_l, by = "rsid")
+```
+
+# Supplementary tables
+
+Filter the columns for the supplementary tables:
+
+```{r}
+fertility_merge_supp <- fertility_pleios %>%
+  select(rsid, trait_code, disease_code, pleiotropy_sign)
+
+longevity_merge_supp <- longevity_pleios %>%
+  select(rsid, trait_code, disease_code, pleiotropy_sign)
+```
+
+Separate positive and negative pleiotropies:
+
+```{r}
+fertility_merge_supp_pos <- fertility_merge_supp %>%
+  filter(pleiotropy_sign == "positive")
+fertility_merge_supp_neg <- fertility_merge_supp %>%
+  filter(pleiotropy_sign == "negative")
+longevity_merge_supp_pos <- longevity_merge_supp %>%
+  filter(pleiotropy_sign == "positive")
+longevity_merge_supp_neg <- longevity_merge_supp %>%
+  filter(pleiotropy_sign == "negative")
+```
+
+Merge:
+
+```{r}
+fertility_supp_pos <- merge(fertility_merge_supp_pos, vep_output, by = "rsid")
+fertility_supp_neg <- merge(fertility_merge_supp_neg, vep_output, by = "rsid")
+longevity_supp_pos <- merge(longevity_merge_supp_pos, vep_output, by = "rsid")
+longevity_supp_neg <- merge(longevity_merge_supp_neg, vep_output, by = "rsid")
+```
+
+Save as excel:
+
+```{r}
+library(writexl)
+```
+
+```{r, eval=FALSE}
+write_xlsx(fertility_supp_pos, "./SM_fertility_positive_pleios_VEPannotatios.xlsx")
+write_xlsx(fertility_supp_neg, "./SM_fertility_negative_pleios_VEPannotatios.xlsx")
+write_xlsx(longevity_supp_pos, "./SM_longevity_positive_pleios_VEPannotatios.xlsx")
+write_xlsx(longevity_supp_neg, "./SM_longevity_negative_pleios_VEPannotatios.xlsx")
+
+# The xlsx format does not support tables with 1M+ rows, therefore I cannot do it for the background set
+```
+
