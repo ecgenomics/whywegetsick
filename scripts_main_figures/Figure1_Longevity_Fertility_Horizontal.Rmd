@@ -1,0 +1,448 @@
+---
+title: "Figure1"
+author: "Eva Brigos"
+date: "2025-05-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library("ggpubr")
+library(forcats)
+library(cowplot)
+library(ggbreak)
+```
+
+# Longevity data
+
+```{r}
+# Genetic Correlations
+long_gc <- read.csv("../data/longevity-genetic-correlations.txt", sep = "\t")
+# Rename GC columns
+names(long_gc) <- c("Code", "Intercept", "Intercept_SE", "GC", "GC_SE", "PValue")
+
+# Counts pleiotropic SNPs by disease
+long_pleiotropy <- read.csv("../data/longevity-commonSNPs-pleioFDR-conjfdr005-pleiotropies.csv", sep = ",")
+# Rename pleiotropy columns
+names(long_pleiotropy) <- c("Code", "TOTAL", "counts_positive", "counts_negative")
+
+# Pleiotropy: all information by pleiotropic SNP
+long_pleiotropy2 <- read.csv("../data/plifespan_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+# Rename pleiotropy2 columns
+long_pleiotropy2 <- long_pleiotropy2 %>%
+  rename(Code = disease_code)
+```
+
+# Fertility data
+
+```{r}
+# Genetic Correlations
+fert_gc <- read.csv("../data/fertility-genetic-correlations.txt", sep = "\t")
+# Rename GC columns
+names(fert_gc) <- c("Code", "Intercept", "Intercept_SE", "GC", "GC_SE", "PValue")
+
+# Counts pleiotropic SNPs by disease
+fert_pleiotropy <- read.csv("../data/fertility-commonSNPs-pleioFDR-conjfdr005-pleiotropies.list", sep = ",")
+# Rename pleiotropy columns
+names(fert_pleiotropy) <- c("Code", "TOTAL", "counts_positive", "counts_negative")
+
+# Pleiotropy: all information by pleiotropic SNP
+fert_pleiotropy2 <- read.csv("../data/fertility_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+# Rename pleiotropy2 columns
+fert_pleiotropy2 <- fert_pleiotropy2 %>%
+  rename(Code = disease_code)
+```
+
+# Metadata and age at disease onset
+
+```{r}
+# Age at disease onset
+ado <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+# Rename ado columns
+names(ado) <- c("Code", "ADO_5", "ADO_50", "ADO_95")
+
+# Metadata
+metadata <- read.csv("../data/domain_name_acronym_62diseases.csv", sep = ";")
+```
+
+# Create new merged data-frames
+
+Genetic correlation results:
+
+```{r}
+# Merge gc with ado
+long_gc_ado <- merge(long_gc, ado, by = "Code")
+fert_gc_ado <- merge(fert_gc, ado, by = "Code")
+
+# Merge to have GC information
+gc_longevity <- merge(long_gc_ado, metadata, by = "Code")
+gc_fertility <- merge(fert_gc_ado, metadata, by = "Code")
+```
+
+Compute the FDR for genetic correlation p-values:
+
+```{r}
+gc_fertility$FDR <- p.adjust(gc_fertility$PValue, method = "BH")
+gc_longevity$FDR <- p.adjust(gc_longevity$PValue, method = "BH")
+```
+
+Pleiotropy results:
+
+# Subplot 1: Longevity genetic correlations ordered by ADO
+
+Add the correlation and significance columns:
+
+```{r}
+gc_longevity$Correlation <- ifelse(gc_longevity$GC > 0, "Positive GC", "Negative GC")
+gc_longevity$Significant <- ifelse(gc_longevity$PValue < 0.05, "Significant", "Not Significant")
+```
+
+Change disease names to make it shorter:
+
+```{r}
+gc_longevity$DiseaseName <- gsub("Attention deficit hyperactivity disorder", "ADHD", gc_longevity$DiseaseName)
+gc_longevity$DiseaseName <- gsub("Benign neoplasm of colon-rectum-anus", "Neoplasm of colon-rectum-anus", gc_longevity$DiseaseName)
+```
+
+Order the data-frame:
+
+```{r}
+gc_longevity$DiseaseName <- factor(gc_longevity$DiseaseName, levels = unique(gc_longevity$DiseaseName[order(gc_longevity$ADO_5, decreasing = TRUE)]))
+```
+
+Plot:
+
+```{r}
+subplot1 <- ggplot(gc_longevity, aes(x = GC, y = DiseaseName, color = Correlation)) +
+  geom_point(alpha = 0.4, size = 1.5) +
+  geom_point(data = gc_longevity, aes(alpha = Significant), size = 1.5) +
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  labs(title = "Longevity") +
+  theme_bw()
+# add error bars
+subplot1 <- subplot1 + geom_errorbar(aes(xmin = GC - GC_SE, xmax = GC + GC_SE,
+                              alpha = Significant), width = 0.8)
+# add vertical dotted line at 0
+subplot1 <- subplot1 + geom_vline(xintercept = 0, linetype = "dotted")
+# set y range from -1 to 1
+subplot1 <- subplot1 + coord_cartesian(xlim = c(-1, 1), ylim = c(1, nrow(gc_longevity)))
+subplot1 <- subplot1 + xlab("rg")
+subplot1 <- subplot1 + theme(legend.position = "none",
+                 axis.text.y = element_text(vjust = 0.3, size = 6, family = "Arial", color = "black"),
+                 axis.title.x = element_text(family = "Arial", size = 7, margin = margin(t = 3), color = "black"),
+                 axis.title.y = element_blank(),
+                 axis.text.x = element_text(size = 6, family = "Arial", color = "black", margin = margin(t = 2)),
+                 plot.margin = margin(t = 10, r = 1, b = 1, l = 1),
+                 panel.grid = element_blank(),
+                 axis.line = element_line(color = "black"),
+                 plot.title.position = "plot",
+                 plot.title = element_text(family = "Arial", hjust = 0.82, vjust = 0, size = 7, color = "black", face = "bold"))
+
+subplot1
+```
+
+```{r, eval=FALSE}
+ggsave("./Subplot1_longevity_test_horizontal.png",
+       subplot1, 
+       width = 210, 
+       height = 297, 
+       units = "mm",
+       dpi = 500)
+```
+
+
+# Subplot 2: Fertility genetic correlations ordered by ADO
+
+Add the correlation and significance columns:
+
+```{r}
+gc_fertility$Correlation <- ifelse(gc_fertility$GC > 0, "Positive GC", "Negative GC")
+gc_fertility$Significant <- ifelse(gc_fertility$FDR < 0.05, "Significant", "Not Significant")
+```
+
+Order the data-frame:
+
+```{r}
+gc_fertility$DiseaseName <- factor(gc_fertility$DiseaseName, levels = unique(gc_fertility$DiseaseName[order(gc_fertility$ADO_5, decreasing = TRUE)]))
+```
+
+Plot:
+
+```{r}
+subplot2 <- ggplot(gc_fertility, aes(x = GC, y = DiseaseName, color = Correlation)) +
+  geom_point(alpha = 0.4, size = 1.5) +
+  geom_point(data = gc_fertility, aes(alpha = Significant), size = 1.5) +
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  labs(title = "Fertility") +
+  theme_bw()
+# add error bars
+subplot2 <- subplot2 + geom_errorbar(aes(xmin = GC - GC_SE, xmax = GC + GC_SE,
+                              alpha = Significant), width = 0.8)
+# add vertical dotted line at 0
+subplot2 <- subplot2 + geom_vline(xintercept = 0, linetype = "dotted")
+subplot2 <- subplot2 + coord_cartesian(xlim = c(-1, 1), ylim = c(1, nrow(gc_fertility)))
+subplot2 <- subplot2 + xlab("rg")
+subplot2 <- subplot2 + theme(legend.position = "none",
+                             axis.ticks.y = element_blank(),
+                 axis.text.y = element_blank(),
+                 axis.title.y = element_blank(),
+                 axis.title.x = element_text(size = 7, margin = margin(t = 3), color = "black", family = "Arial"),
+                 axis.text.x = element_text(size = 6, family = "Arial", color = "black", margin = margin(t = 2)),
+                 plot.margin = margin(t = 10, r = 1, b = 1, l = 1),
+                 panel.grid = element_blank(),
+                 axis.line = element_line(color = "black"),
+                 plot.title.position = "plot",
+                 plot.title = element_text(hjust = 0.5, vjust = 0, size = 7, family = "Arial", color = "black", face = "bold"))
+
+subplot2
+```
+
+
+# Subplot 3: Longevity pleiotropy counts
+
+Create new data-frame with a new column structure:
+
+```{r}
+combined_counts_longevity <- pivot_longer(long_pleiotropy, 
+                                cols = starts_with("counts"), 
+                                names_to = "count_type", 
+                                values_to = "count")
+```
+
+Add a new column to identify the type of count:
+
+```{r}
+combined_counts_longevity$type <- ifelse(combined_counts_longevity$count_type == "counts_positive", "Positive", "Negative")
+```
+
+Create a new merged data-frame:
+
+```{r}
+# subset of gc with just 3 columns
+ado_subset <- gc_longevity[,c("Code", "Acronym", "ADO_5")]
+
+# Order ado_subset by ADO
+ado_subset <- ado_subset[order(ado_subset$ADO_5),]
+
+# Add the index column
+ado_subset$Index <- 1:nrow(ado_subset)
+
+# Merge to have ADO information
+pleio_longevity <- merge(ado_subset, combined_counts_longevity, by = "Code")
+```
+
+Transform the negative counts to negative values to have them differently
+distributed in the plot:
+
+```{r}
+pleio_longevity$count2 <- ifelse(pleio_longevity$type == "Negative", -pleio_longevity$count, pleio_longevity$count)
+```
+
+Reorder diseases by ADO from early to late-onset:
+
+```{r}
+pleio_longevity$Acronym <- factor(pleio_longevity$Acronym, levels = unique(pleio_longevity$Acronym[order(pleio_longevity$ADO_5, decreasing = TRUE)]))
+```
+
+Plot:
+position = "left"
+
+```{r}
+subplot3 <- ggplot(pleio_longevity, aes(y = Acronym, x = count2, fill = type)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#990000", "#023E8A")) +
+  scale_x_continuous(labels = function(y) abs(y),
+                     limits = c(-166, 30),
+                     breaks = seq(30, -166, by = -30)) +
+  labs(title="Longevity") +
+  theme_bw()
+subplot3 <- subplot3 + xlab("Pleiotropy Counts")
+subplot3 <- subplot3 + theme(legend.position = "none",
+                 axis.ticks.y = element_blank(),
+                 axis.text.y = element_blank(),
+                 axis.title.y = element_blank(),
+                 axis.title.x = element_text(size = 7, margin = margin(t = 3), color = "black", family = "Arial"),
+                 axis.text.x = element_text(size = 6, family = "Arial", color = "black", margin = margin(t = 2)),
+                 plot.margin = margin(t = 10, r = 1, b = 1, l = 1),
+                 panel.grid = element_blank(),
+                 axis.line = element_line(color = "black"),
+                 plot.title.position = "plot",
+                 plot.title = element_text(hjust = 0.5, vjust = 0, size = 7, family = "Arial", color = "black", face = "bold"))
+
+subplot3
+```
+
+# Subplot 4: Fertility pleiotropy counts
+
+Create new data-frame with a new column structure:
+
+```{r}
+combined_counts_fertility <- pivot_longer(fert_pleiotropy, 
+                                cols = starts_with("counts"), 
+                                names_to = "count_type", 
+                                values_to = "count")
+```
+
+Add a new column to identify the type of count:
+
+```{r}
+combined_counts_fertility$type <- ifelse(combined_counts_fertility$count_type == "counts_positive", "Positive", "Negative")
+```
+
+Merge to have ADO information:
+
+```{r}
+pleio_fertility <- merge(ado_subset, combined_counts_fertility, by = "Code")
+```
+
+Transform the negative counts to negative values to have them differently
+distributed in the plot:
+
+```{r}
+pleio_fertility$count2 <- ifelse(pleio_fertility$type == "Negative", -pleio_fertility$count, pleio_fertility$count)
+```
+
+Reorder diseases by ADO from early to late-onset:
+
+```{r}
+pleio_fertility$Acronym <- factor(pleio_fertility$Acronym, levels = unique(pleio_fertility$Acronym[order(pleio_fertility$ADO_5, decreasing = TRUE)]))
+```
+
+Plot:
+
+```{r}
+subplot4 <- ggplot(pleio_fertility, aes(y = Acronym, x = count2, fill = type)) +
+  geom_bar(stat = "identity")+
+  scale_fill_manual(values = c("#990000", "#023E8A")) +
+  scale_x_continuous(labels = function(y) abs(y),
+                     limits = c(-50, 30),
+                     breaks = seq(30, -50, by = -10))+
+  labs(title="Fertility") +
+  theme_bw()
+subplot4 <- subplot4 + xlab("Pleiotropy Counts")
+subplot4 <- subplot4 + theme(legend.position = "none",
+                 axis.ticks.y = element_blank(),
+                 axis.text.y = element_blank(),
+                 axis.title.y = element_blank(),
+                 axis.title.x = element_text(size = 7, margin = margin(t = 3), color = "black", family = "Arial"),
+                 axis.text.x = element_text(size = 6, family = "Arial", color = "black", margin = margin(t = 2)),
+                 plot.margin = margin(t = 10, r = 1, b = 1, l = 1),
+                 panel.grid = element_blank(),
+                 axis.line = element_line(color = "black"),
+                 plot.title.position = "plot",
+                 plot.title = element_text(hjust = 0.6, vjust = 0, size = 7, family = "Arial", color = "black", face = "bold"))
+subplot4
+```
+
+# Subplot 5: Age at disease onset
+
+Create a dummy variable for the y-axis:
+
+```{r}
+onset <- gc_fertility %>%
+  mutate(dummy = 1)
+```
+
+Order by onset age:
+
+```{r}
+onset$Acronym <- factor(onset$Acronym, levels = unique(onset$Acronym[order(onset$ADO_5, decreasing = TRUE)]))
+onset <- onset[order(onset$ADO_5),]
+```
+
+Get the lables to plot:
+
+```{r}
+values_onset <- as.array(round(onset$ADO_5, 0))
+names_disease <- as.array(onset$Acronym)
+```
+
+Plot:
+
+```{r}
+subplot5 <- ggplot(onset, aes(y = Acronym, x = dummy, fill = ADO_5)) +
+  geom_tile(width = 1, height = 1) +  # Create one tile per age
+  scale_fill_gradient(low = "#FEE08B", high = "#B7E7A7") +  # Gradient
+  scale_x_discrete(expand = expansion(add = c(0, 0))) +
+  scale_y_discrete(breaks = onset$Acronym, labels = values_onset) +
+  theme_bw() +
+  xlab("Onset\nAge") +
+  theme(
+    legend.position = "none",
+    axis.title = element_blank(),
+    axis.title.x = element_text(size = 6, margin = margin(b = 1.5), color = "black", family = "Arial"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    plot.margin = margin(t = 10, r = 5, b = 1, l = 1)
+    )
+
+subplot5
+```
+
+Add costumized ticks:
+
+```{r}
+custom_ticks <- data.frame(
+  y = c(61, 48, 38, 28, 20, 11, 5, 1.5),
+  label = c(1, 10, 20, 30, 40, 45, 50, 65)
+)
+
+# Add tick marks
+subplot5_mod <- subplot5 +
+  geom_text(data = custom_ticks,
+          aes(x = 1, y = y, label = label),
+          inherit.aes = FALSE,
+          size = 2, family = "Arial", color = "black", fontface = "bold")
+
+subplot5_mod
+```
+
+# Aggregate the subplots
+
+```{r, eval=FALSE}
+figure1 <- ggarrange(subplot1, subplot2, subplot3, subplot4, subplot5_mod,
+                         ncol = 5, nrow = 1, heights = c(1.15, 1, 1.1, 1.1, 0.3), align = "h")
+```
+
+Option 2 (the same but adding the labels):
+
+```{r}
+figure1 <- plot_grid(subplot1, subplot2, subplot3, subplot4, subplot5_mod,
+  ncol = 5,
+  labels = c("a", "b", "c", "d", ""),
+  label_fontface = "bold",
+  label_fontfamily = "Arial",
+  label_size = 7,
+  align = "h",
+  rel_heights = c(1, 1),
+  rel_widths = c(2, 0.95, 1.15, 1.15, 0.19)
+)
+
+figure1
+```
+
+# Save the plot
+
+```{r}
+ggsave("./Figure1_longevity_fertility.png",
+       figure1, 
+       height = 170, 
+       width = 180, 
+       units = "mm",
+       dpi = 400)
+```
+
+
+
