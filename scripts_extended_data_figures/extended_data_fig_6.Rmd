@@ -1,0 +1,341 @@
+---
+title: "nSL and iHS (GBR) Longevity"
+author: "Eva Brigos"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load required libraries
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+```
+
+# Load data-frames
+
+```{r}
+ihs_gbr <- read.csv("longevity_earliest_iHS_GBR.tsv", sep = "\t")
+nsl_gbr <- read.csv("longevity_earliest_nSL_GBR.tsv", sep = "\t")
+```
+
+Onset age:
+
+```{r}
+ado <- read.csv("onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+names(ado) <- c("disease_code", "ADO_5", "ADO_50", "ADO_95")
+```
+
+# Merge
+
+```{r}
+ihs_gbr2 <- merge(ihs_gbr, ado, by = "disease_code")
+nsl_gbr2 <- merge(nsl_gbr, ado, by = "disease_code")
+```
+
+# Cumulative iHS GBR
+
+Prepare data to plot:
+
+```{r}
+age <- c(10, 20, 30, 40, 50, 60, 70)
+
+# List
+mean_array <- c()
+se_array <- c()
+pleiotropy_array <- c()
+age_array1 <- c()
+pvalues_array <- c()
+age_array2 <- c()
+
+for (i in age) {
+  # subset
+  df <- ihs_gbr2[ihs_gbr2$ADO_5 <= i, ]
+  # positive vs negative
+  pos <- df[df$pleiotropy_sign == "positive", ]
+  neg <- df[df$pleiotropy_sign == "negative", ]
+  # mean and se
+  pos_mean <- mean(pos$RiskAllele_iHS, na.rm = TRUE)
+  mean_array <- c(mean_array, pos_mean)
+  pos_se <- sd(pos$RiskAllele_iHS, na.rm = TRUE) / sqrt(sum(!is.na(pos$RiskAllele_iHS)))
+  se_array <- c(se_array, pos_se)
+  neg_mean <- mean(neg$RiskAllele_iHS, na.rm = TRUE)
+  mean_array <- c(mean_array, neg_mean)
+  neg_se <- sd(neg$RiskAllele_iHS, na.rm = TRUE) / sqrt(sum(!is.na(neg$RiskAllele_iHS)))
+  se_array <- c(se_array, neg_se)
+  pleiotropy_array <- c(pleiotropy_array, "positive", "negative")
+  age_array1 <- c(age_array1, i, i)
+  # MW Test
+  if (nrow(pos) == 0 | nrow(neg) == 0) {
+    pvalues_array <- c(pvalues_array, NA)
+    age_array2 <- c(age_array2, i)
+  } else {
+    test_result <- wilcox.test(pos$RiskAllele_iHS, neg$RiskAllele_iHS)
+    pvalues_array <- c(pvalues_array, test_result$p.value)
+    age_array2 <- c(age_array2, i)
+  }
+}
+
+# Output in data-frames
+main_df <- data.frame(OnsetAge = age_array1, Mean = mean_array, SE = se_array, pleiotropy_sign = pleiotropy_array)
+pvalue_df <- data.frame(OnsetAge = age_array2, MWPvalue = pvalues_array)
+pvalue_df$log10Pvalue <- -log10(pvalue_df$MWPvalue)
+pvalue_df$Significance <- ifelse(pvalue_df$MWPvalue < 0.05, "Significant", "Not Significant")
+```
+
+Plot:
+
+```{r}
+# Sub-plot 1: mean and SE
+a1 <- ggplot(main_df,
+             aes(x = OnsetAge,
+                 y = Mean,
+                 color = pleiotropy_sign,
+                 fill  = pleiotropy_sign,
+                 group = pleiotropy_sign)) +
+  geom_ribbon(aes(ymin = Mean - SE,
+                  ymax = Mean + SE),
+              alpha = 0.2,
+              color = NA) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  scale_y_continuous(breaks = seq(-0.2, 0.4, by = 0.2), limits = c(-0.2, 0.45)) +
+  geom_line(linetype = "dashed",
+            linewidth = 0.5) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+  scale_fill_manual(values  = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+
+  labs(x = "Age at disease onset",
+       y = "iHS (GBR)") +
+  theme_bw() +
+  theme(
+    legend.position   = "none",
+    panel.grid        = element_blank(),
+    axis.title.x      = element_blank(),
+    axis.text.x       = element_blank(),
+    axis.text.y       = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+    axis.ticks        = element_line(linewidth = 0.7),
+    axis.title.y      = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 10)),
+    axis.line         = element_line(color = "black"),
+    plot.margin = margin(t = 10, r = 10, b = 1, l = 10)
+  )
+
+
+# Sub-plot 2: MW p-value
+a2 <- ggplot(pvalue_df, aes(x = OnsetAge, y = log10Pvalue, colour = Significance)) +
+  geom_hline(yintercept = 1.3, linetype = "dashed", color = "gray", linewidth = 0.5) +
+  geom_point(stat = "identity", size = 1.5) +
+  labs(x = "Age at disease onset", y = expression(italic(-log)[10] ~ italic("p-value"))) +
+  scale_color_manual(values = c("Significant" = "black", "Not Significant" = "gray")) +
+  scale_y_continuous(breaks = seq(0, 2.5, by = 1), limits = c(-0.2, 2.5)) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.title.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+        axis.ticks = element_line(color = "black"),
+        axis.title.y = element_text(size = 6, family = "Helvetica", color = "black", margin = margin(r = 1)),
+        axis.line = element_line(color = "black"),
+        plot.margin = margin(t = 1, r = 10, b = 5, l = 10))
+
+# Aggregate the plots
+cumulative_ihs_gbr <- plot_grid(a1, a2, ncol = 1, align = "v", rel_heights = c(1, 0.5))
+```
+
+# Cumulative nSL GBR
+
+Prepare data to plot:
+
+```{r}
+age <- c(10, 20, 30, 40, 50, 60, 70)
+
+# List
+mean_array <- c()
+se_array <- c()
+pleiotropy_array <- c()
+age_array1 <- c()
+pvalues_array <- c()
+age_array2 <- c()
+
+for (i in age) {
+  # subset
+  df <- nsl_gbr2[nsl_gbr2$ADO_5 <= i, ]
+  # positive vs negative
+  pos <- df[df$pleiotropy_sign == "positive", ]
+  neg <- df[df$pleiotropy_sign == "negative", ]
+  # mean and se
+  pos_mean <- mean(pos$RiskAllele_nSL, na.rm = TRUE)
+  mean_array <- c(mean_array, pos_mean)
+  pos_se <- sd(pos$RiskAllele_nSL, na.rm = TRUE) / sqrt(sum(!is.na(pos$RiskAllele_nSL)))
+  se_array <- c(se_array, pos_se)
+  neg_mean <- mean(neg$RiskAllele_nSL, na.rm = TRUE)
+  mean_array <- c(mean_array, neg_mean)
+  neg_se <- sd(neg$RiskAllele_nSL, na.rm = TRUE) / sqrt(sum(!is.na(neg$RiskAllele_nSL)))
+  se_array <- c(se_array, neg_se)
+  pleiotropy_array <- c(pleiotropy_array, "positive", "negative")
+  age_array1 <- c(age_array1, i, i)
+  # MW Test
+  if (nrow(pos) == 0 | nrow(neg) == 0) {
+    pvalues_array <- c(pvalues_array, NA)
+    age_array2 <- c(age_array2, i)
+  } else {
+    test_result <- wilcox.test(pos$RiskAllele_nSL, neg$RiskAllele_nSL)
+    pvalues_array <- c(pvalues_array, test_result$p.value)
+    age_array2 <- c(age_array2, i)
+  }
+}
+
+# Output in data-frames
+main_df <- data.frame(OnsetAge = age_array1, Mean = mean_array, SE = se_array, pleiotropy_sign = pleiotropy_array)
+pvalue_df <- data.frame(OnsetAge = age_array2, MWPvalue = pvalues_array)
+pvalue_df$log10Pvalue <- -log10(pvalue_df$MWPvalue)
+pvalue_df$Significance <- ifelse(pvalue_df$MWPvalue < 0.05, "Significant", "Not Significant")
+```
+
+Plot:
+
+```{r}
+# Sub-plot 1: mean and SE
+a1 <- ggplot(main_df,
+             aes(x = OnsetAge,
+                 y = Mean,
+                 color = pleiotropy_sign,
+                 fill  = pleiotropy_sign,
+                 group = pleiotropy_sign)) +
+  geom_ribbon(aes(ymin = Mean - SE,
+                  ymax = Mean + SE),
+              alpha = 0.2,
+              color = NA) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  scale_y_continuous(breaks = seq(-0.2, 0.4, by = 0.2), limits = c(-0.2, 0.45)) +
+  geom_line(linetype = "dashed",
+            linewidth = 0.5) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+  scale_fill_manual(values  = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+
+  labs(x = "Age at disease onset",
+       y = "nSL (GBR)") +
+  theme_bw() +
+  theme(
+    legend.position   = "none",
+    panel.grid        = element_blank(),
+    axis.title.x      = element_blank(),
+    axis.text.x       = element_blank(),
+    axis.text.y       = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+    axis.ticks        = element_line(linewidth = 0.7),
+    axis.title.y      = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 10)),
+    axis.line         = element_line(color = "black"),
+    plot.margin = margin(t = 3, r = 10, b = 1, l = 10)
+  )
+
+
+# Sub-plot 2: MW p-value
+a2 <- ggplot(pvalue_df, aes(x = OnsetAge, y = log10Pvalue, colour = Significance)) +
+  geom_hline(yintercept = 1.3, linetype = "dashed", color = "gray", linewidth = 0.5) +
+  geom_point(stat = "identity", size = 1.5) +
+  labs(x = "Age at disease onset", y = expression(italic(-log)[10] ~ italic("p-value"))) +
+  scale_color_manual(values = c("Significant" = "black", "Not Significant" = "gray")) +
+  scale_y_continuous(breaks = seq(0, 2.5, by = 1), limits = c(-0.2, 2.5)) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.title.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+        axis.ticks = element_line(color = "black"),
+        axis.title.y = element_text(size = 6, family = "Helvetica", color = "black", margin = margin(r = 1)),
+        axis.line = element_line(color = "black"),
+        plot.margin = margin(t = 1, r = 10, b = 5, l = 10))
+
+# Aggregate the plots
+cumulative_nsl_gbr <- plot_grid(a1, a2, ncol = 1, align = "v", rel_heights = c(1, 0.5))
+```
+
+Aggregate box-plots:
+
+```{r}
+gbr_all <- plot_grid(cumulative_ihs_gbr, cumulative_nsl_gbr, ncol = 1, align = "hv", labels = c("a", "b"),
+                     label_fontfamily = "Helvetica",
+                     label_size = 7)
+```
+
+# Legend
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Positive Pleiotropy" = "#023E8A",
+      "Negative Pleiotropy"   = "#990000"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 16, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+figure1_with_legend <- ggdraw(gbr_all) +
+  draw_grob(
+    legend_grob,
+    x = 0.8, y = 0.81,
+    width = 0.20, height = 0.25
+  )
+
+figure1_with_legend
+```
+
+Save:
+
+```{r}
+ggsave("extended_data_fig_6.png", plot = figure1_with_legend,
+       width = 180, 
+       height = 180, 
+       units = "mm",
+       dpi = 400)
+```
+
+Vector file:
+
+```{r}
+ggsave(
+  filename = "extended_data_fig_6.pdf",
+  plot = figure1_with_legend,
+  device = "pdf",
+  width = 180,
+  height = 180,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
