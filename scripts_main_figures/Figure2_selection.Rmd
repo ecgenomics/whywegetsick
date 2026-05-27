@@ -1,15 +1,13 @@
 ---
 title: "Figure2_Selection"
 author: "Eva Brigos"
-date: "2025-05-13"
+date: "2026-05-27"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-Here I want to generate the main figure of the evolutionary analysis.
 
 # Load required libraries
 
@@ -22,16 +20,23 @@ library(cowplot)
 # Load data-frames
 
 ```{r}
-sds_fertility_earliest <- read.csv("../data/supplementary_fertility_SDS_earliest_FertilityIncreasing.tsv", sep = "\t")
-ihs_fertility_earliest <- read.csv("../data/supplementary_fertility_iHS_earliest_FertilityIncreasing.tsv", sep = "\t")
-sds_longevity_earliest <- read.csv("../data/supplementary_longevity_SDS_earliest_LongevityIncreasing.tsv", sep = "\t")
-ihs_longevity_earliest <- read.csv("../data/supplementary_longevity_iHS_earliest_LongevityIncreasing.tsv", sep = "\t")
+sds_fertility_earliest <- read.csv("supplementary_fertility_SDS_earliest_FertilityIncreasing.tsv", sep = "\t")
+sds_longevity_earliest <- read.csv("supplementary_longevity_SDS_earliest_LongevityIncreasing.tsv", sep = "\t")
+```
+
+iHS and nSL:
+
+```{r}
+ihs_fertility_earliest <- read.csv("fertility_earliest_iHS_GBR.tsv", sep = "\t")
+nsl_fertility_earliest <- read.csv("fertility_earliest_nSL_GBR.tsv", sep = "\t")
+ihs_longevity_earliest <- read.csv("longevity_earliest_iHS_GBR.tsv", sep = "\t")
+nsl_longevity_earliest <- read.csv("longevity_earliest_nSL_GBR.tsv", sep = "\t")
 ```
 
 Onset age:
 
 ```{r}
-ado <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+ado <- read.csv("onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
 names(ado) <- c("DiseaseTrait", "ADO_5", "ADO_50", "ADO_95")
 ```
 
@@ -96,7 +101,7 @@ for (i in age) {
   }
 }
 
-# Put in data-frames
+# output in data-frames
 main_df <- data.frame(OnsetAge = age_array1, Mean = mean_array, SE = se_array, PleiotropySign = pleiotropy_array)
 pvalue_df <- data.frame(OnsetAge = age_array2, MWPvalue = pvalues_array)
 pvalue_df$log10Pvalue <- -log10(pvalue_df$MWPvalue)
@@ -113,28 +118,19 @@ a1 <- ggplot(main_df,
                  color = PleiotropySign,
                  fill  = PleiotropySign,
                  group = PleiotropySign)) +
-
-  # Shaded SE ribbon
   geom_ribbon(aes(ymin = Mean - SE,
                   ymax = Mean + SE),
               alpha = 0.2,
               color = NA) +
-  
-  # X-axis continuous
   scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
-
-  # Dashed mean lines + points
   geom_line(linetype = "dashed",
             linewidth = 0.5) +
   geom_point(size = 2) +
-
-  # manual colors
   scale_color_manual(values = c("positive" = "#023E8A",
                                 "negative" = "#990000")) +
   scale_fill_manual(values  = c("positive" = "#023E8A",
                                 "negative" = "#990000")) +
-
-  labs(x = "Onset Age",
+  labs(x = "Age at disease onset",
        y = "SDS") +
   theme_bw() +
   theme(
@@ -142,11 +138,11 @@ a1 <- ggplot(main_df,
     panel.grid        = element_blank(),
     axis.title.x      = element_blank(),
     axis.text.x       = element_blank(),
-    axis.text.y       = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+    axis.text.y       = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
     axis.ticks        = element_line(linewidth = 0.7),
-    axis.title.y      = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 10), face = "bold"),
+    axis.title.y      = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 10)),
     axis.line         = element_line(color = "black"),
-    plot.margin = margin(t = 10, r = 10, b = 1, l = 10)
+    plot.margin = margin(t = 2, r = 10, b = 1, l = 10)
   )
 
 
@@ -154,23 +150,147 @@ a1 <- ggplot(main_df,
 a2 <- ggplot(pvalue_df, aes(x = OnsetAge, y = log10Pvalue, colour = Significance)) +
   geom_hline(yintercept = 1.3, linetype = "dashed", color = "gray", linewidth = 0.5) +
   geom_point(stat = "identity", size = 1.5) +
-  labs(x = "Onset Age", y = expression(italic(-log)[10] ~ italic("p-value"))) +
+  labs(x = "Age at disease onset", y = expression(italic(-log)[10] ~ italic("p-value"))) +
   scale_color_manual(values = c("Significant" = "black", "Not Significant" = "gray")) +
-  scale_y_continuous(breaks = seq(1, 3.5, by = 0.5), limits = c(1, 3.5)) +
+  scale_y_continuous(breaks = seq(1, 3.5, by = 1), limits = c(1, 3.5)) +
   scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
   theme_bw() +
   theme(legend.position = "none",
         panel.grid = element_blank(),
-        axis.title.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 10), face = "bold"),
-        axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 8)),
-        axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+        axis.title.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 3)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 3)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
         axis.ticks = element_line(color = "black"),
-        axis.title.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+        axis.title.y = element_text(size = 5, family = "Helvetica", color = "black", margin = margin(r = 5)),
         axis.line = element_line(color = "black"),
-        plot.margin = margin(t = 1, r = 10, b = 20, l = 10))
+        plot.margin = margin(t = 1, r = 10, b = 5, l = 10))
 
 # Aggregate the plots
 cumulative_sds <- plot_grid(a1, a2, ncol = 1, align = "v", rel_heights = c(1, 0.5))
+```
+
+# CUMULATIVE Fertility nSL (disease-risk alleles):
+
+Merge:
+
+```{r}
+names(nsl_fertility_earliest)[2] <- "DiseaseTrait"
+nsl_gbr2 <- merge(nsl_fertility_earliest, ado, by = "DiseaseTrait")
+```
+
+Prepare data to plot:
+
+```{r}
+age <- c(10, 20, 30, 40, 50, 60, 70)
+
+# List
+mean_array <- c()
+se_array <- c()
+pleiotropy_array <- c()
+age_array1 <- c()
+pvalues_array <- c()
+age_array2 <- c()
+
+for (i in age) {
+  # subset
+  df <- nsl_gbr2[nsl_gbr2$ADO_5 <= i, ]
+  # positive vs negative
+  pos <- df[df$pleiotropy_sign == "positive", ]
+  neg <- df[df$pleiotropy_sign == "negative", ]
+  # mean and se
+  pos_mean <- mean(pos$RiskAllele_nSL, na.rm = TRUE)
+  mean_array <- c(mean_array, pos_mean)
+  pos_se <- sd(pos$RiskAllele_nSL, na.rm = TRUE) / sqrt(sum(!is.na(pos$RiskAllele_nSL)))
+  se_array <- c(se_array, pos_se)
+  neg_mean <- mean(neg$RiskAllele_nSL, na.rm = TRUE)
+  mean_array <- c(mean_array, neg_mean)
+  neg_se <- sd(neg$RiskAllele_nSL, na.rm = TRUE) / sqrt(sum(!is.na(neg$RiskAllele_nSL)))
+  se_array <- c(se_array, neg_se)
+  pleiotropy_array <- c(pleiotropy_array, "positive", "negative")
+  age_array1 <- c(age_array1, i, i)
+  # MW Test
+  if (nrow(pos) == 0 | nrow(neg) == 0) {
+    pvalues_array <- c(pvalues_array, NA)
+    age_array2 <- c(age_array2, i)
+  } else {
+    test_result <- wilcox.test(pos$RiskAllele_nSL, neg$RiskAllele_nSL)
+    pvalues_array <- c(pvalues_array, test_result$p.value)
+    age_array2 <- c(age_array2, i)
+  }
+}
+
+# Output in data-frames
+main_df <- data.frame(OnsetAge = age_array1, Mean = mean_array, SE = se_array, pleiotropy_sign = pleiotropy_array)
+pvalue_df <- data.frame(OnsetAge = age_array2, MWPvalue = pvalues_array)
+pvalue_df$log10Pvalue <- -log10(pvalue_df$MWPvalue)
+pvalue_df$Significance <- ifelse(pvalue_df$MWPvalue < 0.05, "Significant", "Not Significant")
+```
+
+Plot:
+
+```{r}
+# Sub-plot 1: mean and SE
+a1 <- ggplot(main_df,
+             aes(x = OnsetAge,
+                 y = Mean,
+                 color = pleiotropy_sign,
+                 fill  = pleiotropy_sign,
+                 group = pleiotropy_sign)) +
+  geom_ribbon(aes(ymin = Mean - SE,
+                  ymax = Mean + SE),
+              alpha = 0.2,
+              color = NA) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  geom_line(linetype = "dashed",
+            linewidth = 0.5) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+  scale_fill_manual(values  = c("positive" = "#023E8A",
+                                "negative" = "#990000")) +
+  labs(x = "Age at disease onset",
+       y = "nSL") +
+  theme_bw() +
+  theme(
+    legend.position   = "none",
+    panel.grid        = element_blank(),
+    axis.title.x      = element_blank(),
+    axis.text.x       = element_blank(),
+    axis.text.y       = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+    axis.ticks        = element_line(linewidth = 0.7),
+    axis.title.y      = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 10)),
+    axis.line         = element_line(color = "black"),
+    plot.margin = margin(t = 2, r = 10, b = 1, l = 10)
+  )
+
+
+# Sub-plot 2: MW p-value
+a2 <- ggplot(pvalue_df, aes(x = OnsetAge, y = log10Pvalue, colour = Significance)) +
+  geom_hline(yintercept = 1.3, linetype = "dashed", color = "gray", linewidth = 0.5) +
+  geom_point(stat = "identity", size = 1.5) +
+  labs(x = "Age at disease onset", y = expression(italic(-log)[10] ~ italic("p-value"))) +
+  scale_color_manual(values = c("Significant" = "black", "Not Significant" = "gray")) +
+  scale_y_continuous(breaks = seq(0.5, 2.5, by = 1), limits = c(0.5, 2.5)) +
+  scale_x_continuous(breaks = seq(10, 70, by = 10), limits = c(10, 70)) +
+  theme_bw() +
+  theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.title.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 3)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 3)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+        axis.ticks = element_line(color = "black"),
+        axis.title.y = element_text(size = 5, family = "Helvetica", color = "black", margin = margin(r = 5)),
+        axis.line = element_line(color = "black"),
+        plot.margin = margin(t = 1, r = 10, b = 5, l = 10))
+
+# Aggregate the plots
+cumulative_nsl_gbr <- plot_grid(a1, a2, ncol = 1, align = "v", rel_heights = c(1, 0.5))
+```
+
+Aggregate both plots:
+
+```{r}
+cumulative_plots <- plot_grid(cumulative_sds, cumulative_nsl_gbr, ncol = 1, align = "hv", rel_heights = c(1, 1), label_size = 7, labels = c("a", "b"), label_fontfamily = "Helvetica")
 ```
 
 # SDS Fertility: positive vs. negative
@@ -179,7 +299,7 @@ cumulative_sds <- plot_grid(a1, a2, ncol = 1, align = "v", rel_heights = c(1, 0.
 # Extract values
 sds_fertility_positive <- sds_fertility_earliest %>%
   filter(PleiotropySign == "positive") %>%
-  pull(RiskAllele_SDS) %>% 
+  pull(RiskAllele_SDS) %>%
   as.numeric()
 
 median_P <- median(sds_fertility_positive)
@@ -198,7 +318,7 @@ t <- wilcox.test(sds_fertility_positive, sds_fertility_negative, alternative = "
 # Data-frame
 df_pos_neg <- data.frame(
   value = c(sds_fertility_negative, sds_fertility_positive),
-  group = factor(rep(c("Negative\nPleiotropies", "Positive\nPleiotropies"),
+  group = factor(rep(c("Negative\npleiotropies", "Positive\npleiotropies"),
                      times = c(length(sds_fertility_negative), length(sds_fertility_positive))))
 )
 
@@ -206,12 +326,12 @@ df_pos_neg <- data.frame(
 b <- ggplot(df_pos_neg, aes(x = group, y = value, fill = group, color = group)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray", linewidth = 0.8) +
   geom_boxplot(width = 0.4, fill = "white", outlier.shape = NA, coef = 1, size = 1) +
-  annotate("text", x = 1.5, y = 3, label = "***", size = 3, color = "black", family = "Arial") +
+  annotate("text", x = 1.5, y = 3, label = "***", size = 3, color = "black", family = "Helvetica") +
   geom_segment(aes(x = 1, xend = 1, y = 2.6, yend = 2.8), color = "black", linewidth = 0.2) +
   geom_segment(aes(x = 2, xend = 2, y = 2.6, yend = 2.8), color = "black", linewidth = 0.2) +
   geom_segment(aes(x = 1, xend = 2, y = 2.8, yend = 2.8), color = "black", linewidth = 0.2) +
-  scale_color_manual(values = c("Positive\nPleiotropies" = "#023E8A",
-                                "Negative\nPleiotropies" = "#990000")) +
+  scale_color_manual(values = c("Positive\npleiotropies" = "#023E8A",
+                                "Negative\npleiotropies" = "#990000")) +
   scale_x_discrete(expand = c(0.8, 0)) +
   coord_cartesian(ylim = c(-3,3)) +
   theme_bw() +
@@ -219,71 +339,73 @@ b <- ggplot(df_pos_neg, aes(x = group, y = value, fill = group, color = group)) 
   theme(legend.position = "none",
         panel.grid = element_blank(),
         axis.title.x = element_blank(),
-        axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 5)),
-        axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
         axis.ticks = element_line(linewidth = 0.7),
-        axis.title.y = element_text(size = 7, family = "Arial", color = "black", face = "bold"),
+        axis.title.y = element_text(size = 7, family = "Helvetica", color = "black"),
         axis.line = element_line(color = "black", linewidth = 0.7),
-        plot.margin = margin(t = 1, r = 5, b = 1, l = 10))
+        plot.margin = margin(t = 2, r = 5, b = 1, l = 10))
 ```
 
-# SDS: Fertility vs disease-risk
+# nSL Fertility: Positive vs. Negative
 
 ```{r}
 # Extract values
-sds_fertility_fertility <- sds_fertility_earliest %>%
-  select(FertilityIncreasing_SDS) %>%
-  unlist() %>%
+nsl_fertility_positive <- nsl_fertility_earliest %>%
+  filter(pleiotropy_sign == "positive") %>%
+  pull(RiskAllele_nSL) %>%
   as.numeric()
 
-median_F <- median(sds_fertility_fertility)
+median_P <- median(nsl_fertility_positive)
 
-sds_fertility_risk <- sds_fertility_earliest %>%
-  select(RiskAllele_SDS) %>%
-  unlist() %>%
-  as.numeric()
+nsl_fertility_negative <- nsl_fertility_earliest %>%
+  filter(pleiotropy_sign == "negative") %>%
+  pull(RiskAllele_nSL) %>% 
+  as.numeric() 
 
-median_R <- median(sds_fertility_risk)
+median_N <- median(nsl_fertility_negative)
 
 # Test
-wilcox.test(sds_fertility_fertility, sds_fertility_risk, alternative = "greater", paired = FALSE)
-#M.W. P = 2.5e-03
+t <- wilcox.test(nsl_fertility_positive, nsl_fertility_negative, alternative = "greater", paired = FALSE)
+# M.W P = 7.6e-03
 
 # Data-frame
-df_fert_risk <- data.frame(
-  value = c(sds_fertility_risk, sds_fertility_fertility),
-  group = factor(rep(c("Disease-risk\nAlleles", "Fertility\nIncreasing\nAlleles"),
-                     times = c(length(sds_fertility_risk), length(sds_fertility_fertility))))
+df_pos_neg <- data.frame(
+  value = c(nsl_fertility_negative, nsl_fertility_positive),
+  group = factor(rep(c("Negative\npleiotropies", "Positive\npleiotropies"),
+                     times = c(length(nsl_fertility_negative), length(nsl_fertility_positive))))
 )
 
 # Plot
-c <- ggplot(df_fert_risk, aes(x = group, y = value, fill = group)) +
+c <- ggplot(df_pos_neg, aes(x = group, y = value, fill = group, color = group)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray", linewidth = 0.8) +
   geom_boxplot(width = 0.4, fill = "white", outlier.shape = NA, coef = 1, size = 1) +
-  annotate("text", x = 1.5, y = 3, label = "**", size = 3, color = "black", family = "Arial") +
+  annotate("text", x = 1.5, y = 3, label = "***", size = 3, color = "black", family = "Helvetica") +
   geom_segment(aes(x = 1, xend = 1, y = 2.6, yend = 2.8), color = "black", linewidth = 0.2) +
   geom_segment(aes(x = 2, xend = 2, y = 2.6, yend = 2.8), color = "black", linewidth = 0.2) +
   geom_segment(aes(x = 1, xend = 2, y = 2.8, yend = 2.8), color = "black", linewidth = 0.2) +
+  scale_color_manual(values = c("Positive\npleiotropies" = "#023E8A",
+                                "Negative\npleiotropies" = "#990000")) +
   scale_x_discrete(expand = c(0.8, 0)) +
   coord_cartesian(ylim = c(-3,3)) +
   theme_bw() +
-  labs(y = "SDS") +
+  labs(y = "nSL") +
   theme(legend.position = "none",
         panel.grid = element_blank(),
         axis.title.x = element_blank(),
-        axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 5)),
-        axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
         axis.ticks = element_line(linewidth = 0.7),
-        axis.title.y = element_text(size = 7, family = "Arial", color = "black", face = "bold"),
+        axis.title.y = element_text(size = 7, family = "Helvetica", color = "black"),
         axis.line = element_line(color = "black", linewidth = 0.7),
-        plot.margin = margin(t = 0, r = 5, b = 1, l = 10))
+        plot.margin = margin(t = 2, r = 5, b = 1, l = 10))
 ```
 
 Aggregate:
 
 ```{r}
 # Combine the plots
-box_plots <- plot_grid(b, c, ncol = 2, align = "h", rel_heights = c(1, 1), label_size = 10, label_fontfamily = "Arial")
+box_plots <- plot_grid(b, c, ncol = 2, align = "h", rel_heights = c(1, 1), label_size = 7, label_fontfamily = "Helvetica")
 ```
 
 # Effect sizes
@@ -291,7 +413,7 @@ box_plots <- plot_grid(b, c, ncol = 2, align = "h", rel_heights = c(1, 1), label
 Fertility pleiotropies SDS:
 
 ```{r}
-effect_sizes_for_fertility_pleios <- read.csv("../data/merged_fertility_pleiotropy_results_to_check_plifespan_effectsizes.csv", sep = ",")
+effect_sizes_for_fertility_pleios <- read.csv("merged_fertility_pleiotropy_results_to_check_plifespan_effectsizes.csv", sep = ",")
 
 # Find the fertility-increasing alleles
 effect_sizes_for_fertility_pleios$FertilityIncreasing_Allele <- ifelse(effect_sizes_for_fertility_pleios$zscore_fertility_gwas > 0, effect_sizes_for_fertility_pleios$A1, effect_sizes_for_fertility_pleios$A2)
@@ -302,24 +424,24 @@ effect_sizes_for_fertility_pleios$FertilityIncreasing_LongevityEffect <- ifelse(
 median_FL <- median(effect_sizes_for_fertility_pleios$FertilityIncreasing_LongevityEffect, na.rm = TRUE)
 
 # Group them
-effect_sizes_for_fertility_pleios$group <- "Fertility-increasing\nAlleles"
+effect_sizes_for_fertility_pleios$group <- "Fertility-increasing\nalleles"
 
 d <- ggplot(effect_sizes_for_fertility_pleios, aes(x = group, y = FertilityIncreasing_LongevityEffect, fill = group)) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray", linewidth = 0.8) +
   geom_boxplot(width = 0.4, fill = "white", outlier.shape = NA, coef = 1, size = 1) +
-  annotate("text", x = 1, y = 2.5, label = "***", size = 3, color = "black", family = "Arial") +
+  annotate("text", x = 1, y = 2.5, label = "***", size = 3, color = "black", family = "Helvetica") +
   coord_cartesian(ylim = c(-4,3)) +
   theme_bw() +
-  labs(y = "Z-score Longevity") +
+  labs(y = "Z-score longevity") +
   theme(legend.position = "none",
         panel.grid = element_blank(),
         axis.title.x = element_blank(),
-        axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 5)),
-        axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
+        axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
         axis.ticks = element_line(linewidth = 0.7),
-        axis.title.y = element_text(size = 7, family = "Arial", color = "black", face = "bold", margin = margin(r = 3)),
+        axis.title.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 3)),
         axis.line = element_line(color = "black", linewidth = 0.7),
-        plot.margin = margin(t = 1, r = 10, b = 1, l = 10))
+        plot.margin = margin(t = 2, r = 10, b = 1, l = 10))
 ```
 
 ```{r}
@@ -330,26 +452,123 @@ t.test(effect_sizes_for_fertility_pleios$FertilityIncreasing_LongevityEffect, mu
 Aggregate box-plots:
 
 ```{r}
-all_box <- plot_grid(b, c, d, ncol = 3, align = "h", rel_widths = c(1, 1, 0.7), labels = c("b", "c", "d"),
-                     label_fontfamily = "Arial",
-                     label_size = 10)
+all_box <- plot_grid(b, c, d, ncol = 3, align = "h", rel_widths = c(1, 1, 0.7), labels = c("c", "d", "e"),
+                     label_fontfamily = "Helvetica",
+                     label_size = 7)
 ```
 
 Put everything together:
 
 ```{r}
-selection <- plot_grid(cumulative_sds, all_box, ncol = 1, align = "h", rel_heights = c(1, 0.6), labels = c("a", ""),
-                   label_fontfamily = "Arial",
-                   label_size = 10)
+selection <- plot_grid(cumulative_plots, all_box, ncol = 1, align = "h", rel_heights = c(1, 0.4), labels = c("", ""),
+                   label_fontfamily = "Helvetica",
+                   label_size = 7)
+```
+
+# Legend
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Positive Pleiotropy" = "#023E8A"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 16, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+selection_legend <- ggdraw(selection) +
+  draw_grob(
+    legend_grob,
+    x = 0.65, y = 0.845,
+    width = 0.20, height = 0.25
+  )
+
+selection_legend
+```
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Negative Pleiotropy"   = "#990000"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 16, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+selection_legend2 <- ggdraw(selection_legend) +
+  draw_grob(
+    legend_grob,
+    x = 0.8, y = 0.845,
+    width = 0.20, height = 0.25
+  )
+
+selection_legend2
 ```
 
 Save:
 
 ```{r}
-ggsave("./Figure2_selection.png", plot = selection,
+ggsave("Figure2_selection.png", plot = selection,
        width = 180, 
-       height = 170, 
+       height = 180, 
        units = "mm",
        dpi = 400)
 ```
 
+Vector file:
+
+```{r}
+ggsave(
+  filename = "Figure2_selection.pdf",
+  plot = selection_legend2,
+  device = "pdf",
+  width = 180,
+  height = 180,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
