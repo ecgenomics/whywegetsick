@@ -2,14 +2,14 @@ library(circlize)
 library(grDevices)
 library(dplyr)
 
+# =========================
 # General Inputs
-names <- read.csv("../data/disease_names.csv", sep = ";")
-age <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
-
-# Change onset by 0.01 just to avoid exactly the same values for GCST90014023 and GCST010003
+# =========================
+names <- read.csv("disease_names.csv", sep = ";")
+age <- read.csv("onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
 age$ADO_5[age$DISEASE_CODE == "GCST010003"] <- 1.27
 
-# Manually change disease names to fit them in the plot
+# Manually change disease names
 names$DiseaseName[names$Code == "2"] <- "ADHD"
 names$DiseaseName[names$Code == "4266"] <- "Asthma\nchild-onset"
 names$DiseaseName[names$Code == "PGC2019ASD"] <- "Autism spectrum\ndisorder"
@@ -32,52 +32,97 @@ names$DiseaseName[names$Code == "GCST90011820"] <- "Endometrial\ncancer"
 names$DiseaseName[names$Code == "3670"] <- "Gastritis and\nDuodenitis"
 names$DiseaseName[names$Code == "PGC2021ALZwoUKBB"] <- "Alzheimer’s\ndisease"
 
+# =========================
 # Inputs Longevity UVMR
-long_uvmr <- read.csv("../data/outcome_longevity_simpleMR_62diseases.csv", sep = ",")
+# =========================
+long_uvmr <- read.csv("outcome_longevity_simpleMR_62diseases.csv", sep = ",")
 long_uvmr_v1 <- merge(long_uvmr, age, by.x = "Exposure", by.y = "DISEASE_CODE")
 long_uvmr_v2 <- merge(long_uvmr_v1, names, by.x = "Exposure", by.y = "Code")
 order1 <- long_uvmr_v2[order(long_uvmr_v2$ADO_5), ]
 
-# Inputs Longevity MVMR
-long_mvmr <- read.csv("../data/outcome_longevity_multivariableMR_62diseases.csv", sep = ",")
-long_mvmr_filtered <- subset(long_mvmr, is.na(Method) | Method == "IVW")
-long_mvmr_v1 <- merge(long_mvmr_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
-long_mvmr_v2 <- merge(long_mvmr_v1, names, by.x = "Exposure1", by.y = "Code")
-order2 <- long_mvmr_v2[order(long_mvmr_v2$ADO_5), ]
+# =========================
+# Inputs Longevity MVMR-Education
+# =========================
+long_mvmr_edu <- read.csv("outcome_longevity_multivariableMR_62diseases.csv", sep = ",")
+long_mvmr_edu_filtered <- subset(long_mvmr_edu, is.na(Method) | Method == "IVW")
+long_mvmr_edu_v1 <- merge(long_mvmr_edu_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
+long_mvmr_edu_v2 <- merge(long_mvmr_edu_v1, names, by.x = "Exposure1", by.y = "Code")
+order2 <- long_mvmr_edu_v2[order(long_mvmr_edu_v2$ADO_5), ]
 
+# =========================
+# Inputs Longevity MVMR-Income
+# =========================
+long_mvmr_inc <- read.csv("longevity_outcome_mvMR_income.csv", sep = ",")
+long_mvmr_inc_filtered <- subset(long_mvmr_inc, is.na(Method) | Method == "IVW")
+long_mvmr_inc_v1 <- merge(long_mvmr_inc_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
+long_mvmr_inc_v2 <- merge(long_mvmr_inc_v1, names, by.x = "Exposure1", by.y = "Code")
+order2b <- long_mvmr_inc_v2[order(long_mvmr_inc_v2$ADO_5), ]
+
+# =========================
 # Inputs Fertility Exposure UVMR
-fert_exp_uvmr <- read.csv("../data/exposure_fertility_simpleMR_62diseases.csv", sep = ",")
+# =========================
+fert_exp_uvmr <- read.csv("exposure_fertility_simpleMR_62diseases.csv", sep = ",")
 fert_exp_uvmr_v1 <- merge(fert_exp_uvmr, age, by.x = "Outcome", by.y = "DISEASE_CODE")
 fert_exp_uvmr_v2 <- merge(fert_exp_uvmr_v1, names, by.x = "Outcome", by.y = "Code")
 order3 <- fert_exp_uvmr_v2[order(fert_exp_uvmr_v2$ADO_5), ]
 
-# Inputs Fertility Exposure MVMV
-fert_exp_mvmr <- read.csv("../data/exposure_fertility_multivariableMR_62diseases.csv", sep = ",")
-fert_exp_mvmr_filtered <- subset(fert_exp_mvmr, is.na(Method) | Method == "IVW")
-fert_exp_mvmr_v1 <- merge(fert_exp_mvmr_filtered, age, by.x = "Outcome", by.y = "DISEASE_CODE")
-fert_exp_mvmr_v2 <- merge(fert_exp_mvmr_v1, names, by.x = "Outcome", by.y = "Code")
-order4 <- fert_exp_mvmr_v2[order(fert_exp_mvmr_v2$ADO_5), ]
+# =========================
+# Inputs Fertility Exposure MVMR-Education
+# =========================
+fert_exp_mvmr_edu <- read.csv("exposure_fertility_multivariableMR_62diseases.csv", sep = ",")
+fert_exp_mvmr_edu_filtered <- subset(fert_exp_mvmr_edu, is.na(Method) | Method == "IVW")
+fert_exp_mvmr_edu_v1 <- merge(fert_exp_mvmr_edu_filtered, age, by.x = "Outcome", by.y = "DISEASE_CODE")
+fert_exp_mvmr_edu_v2 <- merge(fert_exp_mvmr_edu_v1, names, by.x = "Outcome", by.y = "Code")
+order4 <- fert_exp_mvmr_edu_v2[order(fert_exp_mvmr_edu_v2$ADO_5), ]
 
+# =========================
+# Inputs Fertility Exposure MVMR-Income
+# =========================
+fert_exp_mvmr_inc <- read.csv("fertility_exposure_mvMR_income.csv", sep = ",")
+fert_exp_mvmr_inc_filtered <- subset(fert_exp_mvmr_inc, is.na(Method) | Method == "IVW")
+fert_exp_mvmr_inc_v1 <- merge(fert_exp_mvmr_inc_filtered, age, by.x = "Outcome", by.y = "DISEASE_CODE")
+fert_exp_mvmr_inc_v2 <- merge(fert_exp_mvmr_inc_v1, names, by.x = "Outcome", by.y = "Code")
+order4b <- fert_exp_mvmr_inc_v2[order(fert_exp_mvmr_inc_v2$ADO_5), ]
+
+# =========================
 # Inputs Fertility Outcome UVMR
-fert_out_uvmr <- read.csv("../data/outcome_fertility_simpleMR_62diseases.csv", sep = ",")
+# =========================
+fert_out_uvmr <- read.csv("outcome_fertility_simpleMR_62diseases.csv", sep = ",")
 fert_out_uvmr_v1 <- merge(fert_out_uvmr, age, by.x = "Exposure", by.y = "DISEASE_CODE")
 fert_out_uvmr_v2 <- merge(fert_out_uvmr_v1, names, by.x = "Exposure", by.y = "Code")
 order5 <- fert_out_uvmr_v2[order(fert_out_uvmr_v2$ADO_5), ]
 
-# Inputs Fertility Outcome MVMR
-fert_out_mvmr <- read.csv("../data/outcome_fertility_multivariableMR_62diseases.csv", sep = ",")
-fert_out_mvmr_filtered <- subset(fert_out_mvmr, is.na(Method) | Method == "IVW")
-fert_out_mvmr_v1 <- merge(fert_out_mvmr_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
-fert_out_mvmr_v2 <- merge(fert_out_mvmr_v1, names, by.x = "Exposure1", by.y = "Code")
-order6 <- fert_out_mvmr_v2[order(fert_out_mvmr_v2$ADO_5), ]
+# =========================
+# Inputs Fertility Outcome MVMR-Education
+# =========================
+fert_out_mvmr_edu <- read.csv("outcome_fertility_multivariableMR_62diseases.csv", sep = ",")
+fert_out_mvmr_edu_filtered <- subset(fert_out_mvmr_edu, is.na(Method) | Method == "IVW")
+fert_out_mvmr_edu_v1 <- merge(fert_out_mvmr_edu_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
+fert_out_mvmr_edu_v2 <- merge(fert_out_mvmr_edu_v1, names, by.x = "Exposure1", by.y = "Code")
+order6 <- fert_out_mvmr_edu_v2[order(fert_out_mvmr_edu_v2$ADO_5), ]
 
-# To clean the plot, remove CI of the non-significant results
+# =========================
+# Inputs Fertility Outcome MVMR-Income
+# =========================
+fert_out_mvmr_inc <- read.csv("fertility_outcome_mvMR_income.csv", sep = ",")
+fert_out_mvmr_inc_filtered <- subset(fert_out_mvmr_inc, is.na(Method) | Method == "IVW")
+fert_out_mvmr_inc_v1 <- merge(fert_out_mvmr_inc_filtered, age, by.x = "Exposure1", by.y = "DISEASE_CODE")
+fert_out_mvmr_inc_v2 <- merge(fert_out_mvmr_inc_v1, names, by.x = "Exposure1", by.y = "Code")
+order6b <- fert_out_mvmr_inc_v2[order(fert_out_mvmr_inc_v2$ADO_5), ]
+
+# =========================
+# Clean non-significant CI
+# =========================
 for (i in which(order1$Significance == "NS")) {
   order1[i, 8:9] <- NA
 }
 
 for (i in which(order2$Significance_Exposure1 == "NS")) {
   order2[i, 12:13] <- NA
+}
+
+for (i in which(order2b$Significance_Exposure1 == "NS")) {
+  order2b[i, 12:13] <- NA
 }
 
 for (i in which(order3$Significance == "NS")) {
@@ -88,6 +133,10 @@ for (i in which(order4$Significance_Exposure1 == "NS")) {
   order4[i, 12:13] <- NA
 }
 
+for (i in which(order4b$Significance_Exposure1 == "NS")) {
+  order4b[i, 12:13] <- NA
+}
+
 for (i in which(order5$Significance == "NS")) {
   order5[i, 8:9] <- NA
 }
@@ -96,27 +145,44 @@ for (i in which(order6$Significance_Exposure1 == "NS")) {
   order6[i, 12:13] <- NA
 }
 
-# Introduce NA values when Significance on the UVMR is not-avaliable:
+for (i in which(order6b$Significance_Exposure1 == "NS")) {
+  order6b[i, 12:13] <- NA
+}
+
+# =========================
+# Introduce NA values when Significance on the UVMR is not available
+# =========================
 for (i in which(is.na(order1$Significance))) {
   order2[i, 5:22] <- NA
   order2[i, 28:29] <- NA
+  order2b[i, 5:22] <- NA
+  order2b[i, 28:29] <- NA
 }
 
 for (i in which(is.na(order3$Significance))) {
   order4[i, 5:22] <- NA
   order4[i, 28:29] <- NA
+  order4b[i, 5:22] <- NA
+  order4b[i, 28:29] <- NA
 }
 
 for (i in which(is.na(order5$Significance))) {
   order6[i, 5:22] <- NA
   order6[i, 28:29] <- NA
+  order6b[i, 5:22] <- NA
+  order6b[i, 28:29] <- NA
 }
 
+# =========================
+# Disease-age restrictions
+# =========================
 # For fertility as exposure remove diseases with ADO < 5
 for (i in which(order3$ADO_5 < 5)) {
   order3[i, 4:9] <- NA
   order4[i, 5:7] <- NA
   order4[i, 11:13] <- NA
+  order4b[i, 5:7] <- NA
+  order4b[i, 11:13] <- NA
 }
 
 # For fertility as outcome remove diseases with ADO > 45
@@ -124,34 +190,59 @@ for (i in which(order5$ADO_5 > 45)) {
   order5[i, 4:9] <- NA
   order6[i, 5:7] <- NA
   order6[i, 11:13] <- NA
+  order6b[i, 5:7] <- NA
+  order6b[i, 11:13] <- NA
 }
 
-# Compute the log(OR)
+# =========================
+# Compute log(OR)
+# =========================
 order1$OR <- log(order1$OR)
 order2$OR_Exposure1 <- log(order2$OR_Exposure1)
+order2b$OR_Exposure1 <- log(order2b$OR_Exposure1)
+
 order3$OR <- log(order3$OR)
 order4$OR_Exposure1 <- log(order4$OR_Exposure1)
+order4b$OR_Exposure1 <- log(order4b$OR_Exposure1)
+
 order5$OR <- log(order5$OR)
 order6$OR_Exposure1 <- log(order6$OR_Exposure1)
-# Compute the log(OR) confidence intervals
+order6b$OR_Exposure1 <- log(order6b$OR_Exposure1)
+
+# Compute log(OR) confidence intervals
 order1$Lower_OR_CI_95. <- log(order1$Lower_OR_CI_95.)
-order2$Lower_OR_CI_95._Exposure1 <- log(order2$Lower_OR_CI_95._Exposure1)
-order3$Lower_OR_CI_95. <- log(order3$Lower_OR_CI_95.)
-order4$Lower_OR_CI_95._Exposure1 <- log(order4$Lower_OR_CI_95._Exposure1)
-order5$Lower_OR_CI_95. <- log(order5$Lower_OR_CI_95.)
-order6$Lower_OR_CI_95._Exposure1 <- log(order6$Lower_OR_CI_95._Exposure1)
 order1$Upper_OR_CI_95. <- log(order1$Upper_OR_CI_95.)
+
+order2$Lower_OR_CI_95._Exposure1 <- log(order2$Lower_OR_CI_95._Exposure1)
 order2$Upper_OR_CI_95._Exposure1 <- log(order2$Upper_OR_CI_95._Exposure1)
+
+order2b$Lower_OR_CI_95._Exposure1 <- log(order2b$Lower_OR_CI_95._Exposure1)
+order2b$Upper_OR_CI_95._Exposure1 <- log(order2b$Upper_OR_CI_95._Exposure1)
+
+order3$Lower_OR_CI_95. <- log(order3$Lower_OR_CI_95.)
 order3$Upper_OR_CI_95. <- log(order3$Upper_OR_CI_95.)
+
+order4$Lower_OR_CI_95._Exposure1 <- log(order4$Lower_OR_CI_95._Exposure1)
 order4$Upper_OR_CI_95._Exposure1 <- log(order4$Upper_OR_CI_95._Exposure1)
+
+order4b$Lower_OR_CI_95._Exposure1 <- log(order4b$Lower_OR_CI_95._Exposure1)
+order4b$Upper_OR_CI_95._Exposure1 <- log(order4b$Upper_OR_CI_95._Exposure1)
+
+order5$Lower_OR_CI_95. <- log(order5$Lower_OR_CI_95.)
 order5$Upper_OR_CI_95. <- log(order5$Upper_OR_CI_95.)
+
+order6$Lower_OR_CI_95._Exposure1 <- log(order6$Lower_OR_CI_95._Exposure1)
 order6$Upper_OR_CI_95._Exposure1 <- log(order6$Upper_OR_CI_95._Exposure1)
 
-# Number of categories
-n_cat     <- 62
+order6b$Lower_OR_CI_95._Exposure1 <- log(order6b$Lower_OR_CI_95._Exposure1)
+order6b$Upper_OR_CI_95._Exposure1 <- log(order6b$Upper_OR_CI_95._Exposure1)
+
+# =========================
+# General settings
+# =========================
+n_cat <- 62
 categories <- order1$DiseaseName
 
-# Extract statistics + p-values
 get_stats <- function(df, or_col, lower_col, upper_col, p_col) {
   list(
     est   = df[[or_col]],
@@ -161,512 +252,472 @@ get_stats <- function(df, or_col, lower_col, upper_col, p_col) {
   )
 }
 
-# Prepare stats for each dataset pair
-st1 <- get_stats(order1, "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
-st2 <- get_stats(order2, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
-st3 <- get_stats(order3, "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
-st4 <- get_stats(order4, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
-st5 <- get_stats(order5, "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
-st6 <- get_stats(order6, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
+# UVMR + MVMR-Education + MVMR-Income
+st1  <- get_stats(order1,  "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
+st2  <- get_stats(order2,  "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
+st2b <- get_stats(order2b, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
 
-ylim1 <- c(-1, 1)  # adjust for track 1 (st1, st2)
-ylim3 <- c(-1.5, 1)  # adjust for track 3 (st3, st4)
-ylim5 <- c(-1, 1)  # adjust for track 5 (st5, st6)
+st3  <- get_stats(order3,  "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
+st4  <- get_stats(order4,  "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
+st4b <- get_stats(order4b, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
 
-# Pick bg colour by OR and p‐value
+st5  <- get_stats(order5,  "OR",               "Lower_OR_CI_95.",           "Upper_OR_CI_95.",           "Pvalue")
+st6  <- get_stats(order6,  "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
+st6b <- get_stats(order6b, "OR_Exposure1",     "Lower_OR_CI_95._Exposure1", "Upper_OR_CI_95._Exposure1", "Pvalue_Exposure1")
+
+ylim1 <- c(-1, 1)
+ylim3 <- c(-1.5, 1)
+ylim5 <- c(-1, 1)
+
 bg_col_fun <- function(or, pval) {
   if (is.na(or) || is.na(pval) || pval > 0.05) {
-    # 1) missing OR or non‐significant → white
     "#D3D3D380"
   } else if (pval < 0.05 && or < 0) {
-    # 2) significant & OR < 1 → semi‐transparent red
     "#9900004D"
   } else if (pval < 0.05 && or > 0) {
-    # 3) significant & OR > 1 → semi‐transparent blue
     "#023E8A4D"
   } else {
-    # other (e.g. OR == 0) → white
     "#D3D3D380"
   }
 }
 
-# open a 400 dpi PNG
-png("./Figure3_MR_circular.png",
-    width  = 510, height = 510,
-    units  = "mm", res    = 400)
+clip_to_ylim <- function(x, ylim, eps = 0.02) {
+  ifelse(
+    is.na(x), NA,
+    pmax(pmin(x, ylim[2] - eps), ylim[1] + eps)
+  )
+}
 
-# set inner margins (bottom, left, top, right) in lines
-par(mar = c(1, 1, 1, 1),
-    # add a half-inch outer margin on all sides (bcz labels are outside plot)
-    oma = c(11, 11, 11, 11),
-    xpd = NA,
-    family = "Arial")
+point_cex <- 0.7
+draw_point <- function(x, y, pval, pch_sig, pch_ns, cex = point_cex) {
+  if (is.na(y)) return(invisible(NULL))
+  
+  if (!is.na(pval) && pval < 0.05) {
+    if (y < 0) {
+      circos.points(x, y, pch = pch_sig, cex = point_cex, col = "#990000")
+    } else {
+      circos.points(x, y, pch = pch_sig, cex = point_cex, col = "#023E8A")
+    }
+  } else {
+    par(lwd = 0.5)
+    circos.points(x, y, pch = pch_ns, cex = point_cex, col = "black")
+  }
+}
 
-# initialize circos
+draw_ci <- function(x, est, lower, upper, ylim) {
+  if (is.na(lower) || is.na(upper) || is.na(est)) return(invisible(NULL))
+  
+  lower2 <- clip_to_ylim(lower, ylim)
+  upper2 <- clip_to_ylim(upper, ylim)
+  
+  if (est < 0) {
+    circos.segments(x, lower2, x, upper2, col = "#990000")
+  } else {
+    circos.segments(x, lower2, x, upper2, col = "#023E8A")
+  }
+}
+
+# =========================
+# Variable widths for less-informative diseases
+# =========================
+
+find_method_col <- function(df) {
+  candidates <- c("MR Method", "MR_Method", "MR.Method", "Method")
+  out <- candidates[candidates %in% colnames(df)]
+  if (length(out) == 0) return(NA_character_)
+  out[1]
+}
+
+method_col1 <- find_method_col(order1)
+method_col3 <- find_method_col(order3)
+method_col5 <- find_method_col(order5)
+
+mr1_na <- if (!is.na(method_col1)) is.na(order1[[method_col1]]) else rep(FALSE, nrow(order1))
+mr3_na <- if (!is.na(method_col3)) is.na(order3[[method_col3]]) else rep(FALSE, nrow(order3))
+mr5_na <- if (!is.na(method_col5)) is.na(order5[[method_col5]]) else rep(FALSE, nrow(order5))
+
+shrink_disease <- (
+  order1$Significance == "NS" &
+    order3$Significance == "NS" &
+    order5$Significance == "NS"
+) | (
+  mr1_na & mr3_na & mr5_na
+)
+
+shrink_disease[is.na(shrink_disease)] <- FALSE
+
+full_width   <- 1.00
+small_width  <- 0.55
+cat_widths   <- ifelse(shrink_disease, small_width, full_width)
+
+x_left  <- c(0, cumsum(cat_widths)[-n_cat])
+x_right <- cumsum(cat_widths)
+x_mid   <- (x_left + x_right) / 2
+total_width <- sum(cat_widths)
+
+get_offsets <- function(i) {
+  w <- cat_widths[i]
+  c(
+    uv  = -0.24 * w,
+    edu =  0.00 * w,
+    inc =  0.24 * w
+  )
+}
+
+# =========================
+# Center for NS
+# =========================
+get_offsets <- function(i, st_uv, st_edu, st_inc) {
+  w <- cat_widths[i]
+  
+  has_uv  <- !is.na(st_uv$est[i])
+  has_edu <- !is.na(st_edu$est[i])
+  has_inc <- !is.na(st_inc$est[i])
+  
+  delta <- 0.18 * w
+  
+  out <- c(uv = NA, edu = NA, inc = NA)
+  
+  present <- c(uv = has_uv, edu = has_edu, inc = has_inc)
+  n_present <- sum(present)
+  
+  if (n_present == 1) {
+    out[names(present)[present]] <- 0
+  } else if (n_present == 2) {
+    present_names <- names(present)[present]
+    out[present_names[1]] <- -delta
+    out[present_names[2]] <-  delta
+  } else if (n_present == 3) {
+    out["uv"]  <- -0.24 * w
+    out["edu"] <-  0.00 * w
+    out["inc"] <-  0.24 * w
+  }
+  
+  out
+}
+
+# =========================
+# PDF output
+# =========================
+pdf(
+  file = "Figure3_MR_circular_education_income.pdf",
+  width = 180 / 25.4,
+  height = 180 / 25.4,
+  family = "Helvetica",
+  useDingbats = FALSE
+)
+
+par(
+  mar = c(1, 1, 1, 1),
+  oma = c(1.9, 1.9, 2.1, 1.9),
+  xpd = NA,
+  family = "Helvetica",
+  ps = 7
+)
+par(lwd = 1)
+
+cex_lines <- 5 / 7
+cex_disease <- 6 / 7  # disease names = 6 pt
+cex_other   <- 1
+
 circos.clear()
-circos.par(start.degree = 50, gap.degree = 40, cell.padding = c(0,0,0,0),
-           track.margin = c(0.005,0.005))
-circos.initialize("all", xlim = c(0.5, n_cat + 0.5))
+circos.par(
+  start.degree = 55,
+  gap.degree = 35,
+  cell.padding = c(0, 0, 0, 0),
+  track.margin = c(0.005, 0.005)
+)
 
-# function to choose color by p-value
-choose_col <- function(p, col) if(!is.na(p) && p < 0.05) col else adjustcolor(col, alpha.f = 0.4)
+circos.initialize("all", xlim = c(0, total_width))
 
-# Measurement separator:
-sep <- 0.2
-
-# ---- Track 1: order1 (circle) & order2 (triangle) ----
+# =========================
+# Track 1: Disease -> Longevity
+# =========================
 circos.trackPlotRegion(
-  track.index  = 1,
-  ylim         = ylim1,
-  track.height = 0.20,
-  bg.border    = NA,
-  panel.fun    = function(x, y) {
+  track.index = 1,
+  ylim = ylim1,
+  track.height = 0.23,
+  bg.border = NA,
+  panel.fun = function(x, y) {
     cell_ylim <- get.cell.meta.data("cell.ylim")
-    for(i in seq_len(n_cat)) {
-      # background color
-      circos.rect(i-0.5, cell_ylim[1], i+0.5, cell_ylim[2],
-                  col    = bg_col_fun(st1$est[i], st1$pval[i]),
-                  border = NA)
-      # draw CI for Measure 1
-      if(!is.na(st1$lower[i]) && !is.na(st1$upper[i])) {
-        if(st1$est[i] < 0) {
-          circos.segments(i - sep, st1$lower[i],
-                          i - sep, st1$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i - sep, st1$lower[i],
-                          i - sep, st1$upper[i],
-                          col = "#023E8A")
-        }
-      }
-      # draw CI for Measure 2
-      if(!is.na(st2$lower[i]) && !is.na(st2$upper[i])) {
-        if(st2$est[i] < 0) {
-          circos.segments(i + sep, st2$lower[i],
-                          i + sep, st2$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i + sep, st2$lower[i],
-                          i + sep, st2$upper[i],
-                          col = "#023E8A")
-        }
-      }
+    
+    for (i in seq_len(n_cat)) {
+      offs <- get_offsets(i, st1, st2, st2b)
       
-      # ─── points for Measure 1 ────────────────────────────────
-      if(!is.na(st1$est[i])) {
-        if(st1$pval[i] < 0.05) {
-          if(st1$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i - sep, st1$est[i],
-                          pch = 16, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i - sep, st1$est[i],
-                          pch = 16, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant
-          circos.points(i, st1$est[i],
-                        pch = 1, cex = 2.5, col = "black")
-        }
-      }
+      circos.rect(
+        x_left[i], cell_ylim[1], x_right[i], cell_ylim[2],
+        col = bg_col_fun(st1$est[i], st1$pval[i]),
+        border = NA
+      )
       
-      # ─── points for Measure 2 ────────────────────────────────
-      if(!is.na(st2$est[i])) {
-        if(st2$pval[i] < 0.05) {
-          if(st2$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i + sep, st2$est[i],
-                          pch = 17, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i + sep, st2$est[i],
-                          pch = 17, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant & OR < 1 → red circle
-          circos.points(i + sep, st2$est[i],
-                        pch = 2, cex = 2.5, col = "black")
-        }
-      }
+      draw_ci(x_mid[i] + offs["uv"],  st1$est[i],  st1$lower[i],  st1$upper[i],  ylim1)
+      draw_ci(x_mid[i] + offs["edu"], st2$est[i],  st2$lower[i],  st2$upper[i],  ylim1)
+      draw_ci(x_mid[i] + offs["inc"], st2b$est[i], st2b$lower[i], st2b$upper[i], ylim1)
+      
+      draw_point(x_mid[i] + offs["uv"],  clip_to_ylim(st1$est[i],  ylim1), st1$pval[i],  pch_sig = 16, pch_ns = 1, cex = 2)
+      draw_point(x_mid[i] + offs["edu"], clip_to_ylim(st2$est[i],  ylim1), st2$pval[i],  pch_sig = 17, pch_ns = 2, cex = 2)
+      draw_point(x_mid[i] + offs["inc"], clip_to_ylim(st2b$est[i], ylim1), st2b$pval[i], pch_sig = 15, pch_ns = 0, cex = 2)
     }
-    # reference line at OR = 1
-    circos.lines(c(0.5, n_cat + 0.5), c(0, 0), lty = "longdash", col = "black")
-    # y-axis
-    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = 1.5)
-    # Track Name
+    
+    par(lwd = 1)
+    circos.lines(c(0, total_width), c(0, 0), lty = "longdash", col = "black", lwd = 0.5)
+    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = cex_lines)
+    
     circos.text(
-      x            = 64,  # shift left of the axis a bit
-      y            = 0,
-      labels       = "Disease\n\nLongevity",
+      x = total_width + 1.2,
+      y = 0,
+      labels = "Disease   \n\n\nLongevity",
       sector.index = "all",
-      track.index  = 1,
-      facing       = "downward",   # rotates the text to follow the circle
-      niceFacing   = TRUE,          # keeps it upright
-      adj          = c(0.55, 0.45),   # center the text vertically and horizontally
-      cex          = 2,            # label size
-      font         = 2               # bold font for the track name
+      track.index = 1,
+      facing = "downward",
+      niceFacing = TRUE,
+      adj = c(0.68, 0.45),
+      cex = cex_disease,
+      font = 2
     )
   }
 )
 
-# x-axis labels for track 1
-circos.axis(h = "top", track.index = 1, major.at = seq_len(n_cat), labels = categories,
-            labels.cex = 1.8, labels.facing = "clockwise", direction = "outside", major.tick = FALSE)
+circos.axis(
+  h = "top",
+  track.index = 1,
+  major.at = x_mid,
+  labels = categories,
+  labels.cex = cex_disease,
+  labels.facing = "clockwise",
+  direction = "outside",
+  major.tick = FALSE
+)
 
 # separator
-circos.trackPlotRegion(track.index = 2, ylim = c(0,1), track.height = 0.02, bg.border = NA, panel.fun = function(x,y){})
-
-# ---- Track 5: order5 & order6 ----
 circos.trackPlotRegion(
-  track.index  = 3,
-  ylim         = ylim5,
-  track.height = 0.20,
-  bg.border    = NA,
-  panel.fun    = function(x, y) {
+  track.index = 2, ylim = c(0,1), track.height = 0.02, bg.border = NA,
+  panel.fun = function(x,y){}
+)
+
+# =========================
+# Track 3: Disease -> Fertility
+# =========================
+circos.trackPlotRegion(
+  track.index = 3,
+  ylim = ylim5,
+  track.height = 0.23,
+  bg.border = NA,
+  panel.fun = function(x, y) {
     cell_ylim <- get.cell.meta.data("cell.ylim")
-    for(i in seq_len(n_cat)) {
-      # background color
-      circos.rect(i-0.5, cell_ylim[1], i+0.5, cell_ylim[2],
-                  col    = bg_col_fun(st5$est[i], st5$pval[i]),
-                  border = NA)
-      # draw CI for Measure 1
-      if(!is.na(st5$lower[i]) && !is.na(st5$upper[i])) {
-        if(st5$est[i] < 0) {
-          circos.segments(i - sep, st5$lower[i],
-                          i - sep, st5$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i - sep, st5$lower[i],
-                          i - sep, st5$upper[i],
-                          col = "#023E8A")
-        }
-      }
-      # draw CI for Measure 2
-      if(!is.na(st6$lower[i]) && !is.na(st6$upper[i])) {
-        if(st6$est[i] < 0) {
-          circos.segments(i + sep, st6$lower[i],
-                          i + sep, st6$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i + sep, st6$lower[i],
-                          i + sep, st6$upper[i],
-                          col = "#023E8A")
-        }
-      }
+    
+    for (i in seq_len(n_cat)) {
+      offs <- get_offsets(i, st5, st6, st6b)
       
-      # ─── points for Measure 1 ────────────────────────────────
-      if(!is.na(st5$est[i])) {
-        if(st5$pval[i] < 0.05) {
-          if(st5$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i - sep, st5$est[i],
-                          pch = 16, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i - sep, st5$est[i],
-                          pch = 16, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant
-          circos.points(i, st5$est[i],
-                        pch = 1, cex = 2.5, col = "black")
-        }
-      }
+      circos.rect(
+        x_left[i], cell_ylim[1], x_right[i], cell_ylim[2],
+        col = bg_col_fun(st5$est[i], st5$pval[i]),
+        border = NA
+      )
       
-      # ─── points for Measure 2 ────────────────────────────────
-      if(!is.na(st6$est[i])) {
-        if(st6$pval[i] < 0.05) {
-          if(st6$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i + sep, st6$est[i],
-                          pch = 17, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i + sep, st6$est[i],
-                          pch = 17, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant & OR < 1 → red circle
-          circos.points(i + sep, st6$est[i],
-                        pch = 2, cex = 2.5, col = "black")
-        }
-      }
+      draw_ci(x_mid[i] + offs["uv"],  st5$est[i],  st5$lower[i],  st5$upper[i],  ylim5)
+      draw_ci(x_mid[i] + offs["edu"], st6$est[i],  st6$lower[i],  st6$upper[i],  ylim5)
+      draw_ci(x_mid[i] + offs["inc"], st6b$est[i], st6b$lower[i], st6b$upper[i], ylim5)
+      
+      draw_point(x_mid[i] + offs["uv"],  clip_to_ylim(st5$est[i],  ylim5), st5$pval[i],  pch_sig = 16, pch_ns = 1, cex = 2)
+      draw_point(x_mid[i] + offs["edu"], clip_to_ylim(st6$est[i],  ylim5), st6$pval[i],  pch_sig = 17, pch_ns = 2, cex = 2)
+      draw_point(x_mid[i] + offs["inc"], clip_to_ylim(st6b$est[i], ylim5), st6b$pval[i], pch_sig = 15, pch_ns = 0, cex = 2)
     }
-    # reference line at OR = 1
-    circos.lines(c(0.5, n_cat + 0.5), c(0, 0), lty = "longdash", col = "black")
-    # y-axis
-    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = 1.5)
+    
+    par(lwd = 1)
+    circos.lines(c(0, total_width), c(0, 0), lty = "longdash", col = "black", lwd = 0.5)
+    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = cex_lines)
+    
     circos.text(
-      x            = -1,
-      y            = 0,
-      labels       = "log(OR)",
+      x = -1.1,
+      y = 0,
+      labels = "log(OR)",
       sector.index = "all",
-      track.index  = 3,
-      facing       = "clockwise",
-      niceFacing   = FALSE,
-      adj          = c(0.4, 0.6),
-      cex          = 2,
-      font = 3                     # italic
+      track.index = 3,
+      facing = "clockwise",
+      niceFacing = FALSE,
+      adj = c(0.4, 0.8),
+      cex = cex_lines,
+      font = 3
     )
-    # Track Name
+    
     circos.text(
-      x            = 64,
-      y            = 0,
-      labels       = "Disease\n\nFertility",
+      x = total_width + 1.2,
+      y = 0,
+      labels = "Disease\n\n\nFertility",
       sector.index = "all",
-      track.index  = 3,
-      facing       = "downward",
-      niceFacing   = TRUE,
-      adj          = c(0.35, 0.45),
-      cex          = 2,
-      font         = 2
+      track.index = 3,
+      facing = "downward",
+      niceFacing = TRUE,
+      adj = c(0.58, 0.45),
+      cex = cex_disease,
+      font = 2
     )
   }
 )
 
 # separator
-circos.trackPlotRegion(track.index = 4, ylim = c(0,1), track.height = 0.02, bg.border = NA, panel.fun = function(x,y){})
-
-# ---- Track 3: order3 & order4 ----
 circos.trackPlotRegion(
-  track.index  = 5,
-  ylim         = ylim3,
-  track.height = 0.20,
-  bg.border    = NA,
-  panel.fun    = function(x, y) {
+  track.index = 4, ylim = c(0,1), track.height = 0.02, bg.border = NA,
+  panel.fun = function(x,y){}
+)
+
+# =========================
+# Track 5: Fertility -> Disease
+# =========================
+circos.trackPlotRegion(
+  track.index = 5,
+  ylim = ylim3,
+  track.height = 0.23,
+  bg.border = NA,
+  panel.fun = function(x, y) {
     cell_ylim <- get.cell.meta.data("cell.ylim")
-    for(i in seq_len(n_cat)) {
-      # background color
-      circos.rect(i-0.5, cell_ylim[1], i+0.5, cell_ylim[2],
-                  col    = bg_col_fun(st3$est[i], st3$pval[i]),
-                  border = NA)
-      # draw CI for Measure 1
-      if(!is.na(st3$lower[i]) && !is.na(st3$upper[i])) {
-        if(st3$est[i] < 0) {
-          circos.segments(i - sep, st3$lower[i],
-                          i - sep, st3$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i - sep, st3$lower[i],
-                          i - sep, st3$upper[i],
-                          col = "#023E8A")
-        }
-      }
-      # draw CI for Measure 2
-      if(!is.na(st4$lower[i]) && !is.na(st4$upper[i])) {
-        if(st4$est[i] < 0) {
-          circos.segments(i + sep, st4$lower[i],
-                          i + sep, st4$upper[i],
-                          col = "#990000")
-        } else {
-          circos.segments(i + sep, st4$lower[i],
-                          i + sep, st4$upper[i],
-                          col = "#023E8A")
-        }
-      }
+    
+    for (i in seq_len(n_cat)) {
+      offs <- get_offsets(i, st3, st4, st4b)
       
-      # ─── points for Measure 1 ────────────────────────────────
-      if(!is.na(st3$est[i])) {
-        if(st3$pval[i] < 0.05) {
-          if(st3$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i - sep, st3$est[i],
-                          pch = 16, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i - sep, st3$est[i],
-                          pch = 16, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant
-          circos.points(i, st3$est[i],
-                        pch = 1, cex = 2.5, col = "black")
-        }
-      }
+      circos.rect(
+        x_left[i], cell_ylim[1], x_right[i], cell_ylim[2],
+        col = bg_col_fun(st3$est[i], st3$pval[i]),
+        border = NA
+      )
       
-      # ─── points for Measure 2 ────────────────────────────────
-      if(!is.na(st4$est[i])) {
-        if(st4$pval[i] < 0.05) {
-          if(st4$est[i] < 0) {
-            # significant & OR < 1 → filled red circle
-            circos.points(i + sep, st4$est[i],
-                          pch = 17, cex = 2.5, col = "#990000")
-          } else {
-            # significant & OR > 1 → filled blue circle
-            circos.points(i + sep, st4$est[i],
-                          pch = 17, cex = 2.5, col = "#023E8A")
-          }
-        } else {
-          # non-significant & OR < 1 → red circle
-          circos.points(i + sep, st4$est[i],
-                        pch = 2, cex = 2.5, col = "black")
-        }
-      }
+      draw_ci(x_mid[i] + offs["uv"],  st3$est[i],  st3$lower[i],  st3$upper[i],  ylim3)
+      draw_ci(x_mid[i] + offs["edu"], st4$est[i],  st4$lower[i],  st4$upper[i],  ylim3)
+      draw_ci(x_mid[i] + offs["inc"], st4b$est[i], st4b$lower[i], st4b$upper[i], ylim3)
+      
+      draw_point(x_mid[i] + offs["uv"],  clip_to_ylim(st3$est[i],  ylim3), st3$pval[i],  pch_sig = 16, pch_ns = 1, cex = 2)
+      draw_point(x_mid[i] + offs["edu"], clip_to_ylim(st4$est[i],  ylim3), st4$pval[i],  pch_sig = 17, pch_ns = 2, cex = 2)
+      draw_point(x_mid[i] + offs["inc"], clip_to_ylim(st4b$est[i], ylim3), st4b$pval[i], pch_sig = 15, pch_ns = 0, cex = 2)
     }
-    # reference line at OR = 1
-    circos.lines(c(0.5, n_cat + 0.5), c(0, 0), lty = "longdash", col = "black")
-    # y-axis
-    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = 1.5)
-    # Track Name
+    
+    par(lwd = 1)
+    circos.lines(c(0, total_width), c(0, 0), lty = "longdash", col = "black", lwd = 0.5)
+    circos.yaxis(side = "left", at = c(-1, 0, 1), labels.cex = cex_lines)
+    
     circos.text(
-      x            = 64,
-      y            = 0,
-      labels       = "Fertility\n\nDisease",
+      x = total_width + 1.2,
+      y = 0,
+      labels = "Fertility\n\n\nDisease",
       sector.index = "all",
-      track.index  = 5,
-      facing       = "downward",
-      niceFacing   = TRUE,
-      adj          = c(0.15, 0.55),
-      cex          = 2,
-      font         = 2
+      track.index = 5,
+      facing = "downward",
+      niceFacing = TRUE,
+      adj = c(0.33, 0.55),
+      cex = cex_disease,
+      font = 2,
+      family = "Helvetica"
     )
   }
 )
 
 # separator
-circos.trackPlotRegion(track.index = 6, ylim = c(0,1), track.height = 0.02, bg.border = NA, panel.fun = function(x,y){})
+circos.trackPlotRegion(
+  track.index = 6, ylim = c(0,1), track.height = 0.02, bg.border = NA,
+  panel.fun = function(x,y){}
+)
 
-# Onset‐age heat-map (Track 6)
+# =========================
+# Onset-age heatmap
+# =========================
 ages <- order1$ADO_5
 
-# build a color ramp from low → high
 col_fun_age <- colorRamp2(
   c(min(ages, na.rm = TRUE), max(ages, na.rm = TRUE)),
   c("#FEE08B", "#B7E7A7")
 )
 
-# draw the track
 circos.trackPlotRegion(
-  track.index  = 7,
-  ylim         = c(0, 1),       # fill from y=0 to y=1
-  track.height = 0.10,
-  bg.border    = NA,
-  panel.fun    = function(x, y) {
-    for(i in seq_len(n_cat)) {
+  track.index = 7,
+  ylim = c(0, 1),
+  track.height = 0.08,
+  bg.border = NA,
+  panel.fun = function(x, y) {
+    for (i in seq_len(n_cat)) {
       ai <- ages[i]
       if (!is.na(ai)) {
         circos.rect(
-          xleft   = i - 0.5,
+          xleft = x_left[i],
           ybottom = 0,
-          xright  = i + 0.5,
-          ytop    = 1,
-          col     = col_fun_age(ai),
-          border  = NA
+          xright = x_right[i],
+          ytop = 1,
+          col = col_fun_age(ai),
+          border = NA
         )
       }
     }
-    circos.text(
-      x            = 61,  # shift right of the axis a bit
-      y            = 0.5,
-      labels       = "65",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),   # center
-      cex          = 2,            # label size
-      font = 2
-    )
-    circos.text(
-      x            = 57.5,
-      y            = 0.5,
-      labels       = "50",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 51,
-      y            = 0.5,
-      labels       = "45",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 39,
-      y            = 0.5,
-      labels       = "40",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 32,
-      y            = 0.5,
-      labels       = "30",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 23,
-      y            = 0.5,
-      labels       = "20",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 14,
-      y            = 0.5,
-      labels       = "10",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
-    circos.text(
-      x            = 1.5,
-      y            = 0.5,
-      labels       = "1",
-      sector.index = "all",
-      track.index  = 7,
-      facing       = "inside",
-      adj          = c(0.5, 0.5),
-      cex          = 2,
-      font = 2
-    )
+    
+    # keep your manual labels, but move them to nearest disease centers
+    idx_65 <- which.min(abs(ages - 65))
+    idx_50 <- which.min(abs(ages - 50))
+    idx_45 <- which.min(abs(ages - 45))
+    idx_40 <- which.min(abs(ages - 40))
+    idx_30 <- which.min(abs(ages - 30))
+    idx_20 <- which.min(abs(ages - 20))
+    idx_10 <- which.min(abs(ages - 10))
+    idx_1  <- which.min(abs(ages - 1))
+    
+    circos.text(x = x_mid[idx_65], y = 0.5, labels = "65", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_50], y = 0.5, labels = "50", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_45], y = 0.5, labels = "45", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_40], y = 0.5, labels = "40", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_30], y = 0.5, labels = "30", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_20], y = 0.5, labels = "20", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_10], y = 0.5, labels = "10", sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
+    circos.text(x = x_mid[idx_1],  y = 0.5, labels = "1",  sector.index = "all", track.index = 7, facing = "inside", adj = c(0.5, 0.5), cex = cex_lines, font = 2)
   }
 )
 
+# =========================
 # Legend
-# allow legend to draw outside the plot region
+# =========================
 par(xpd = NA)
 
 x_leg <- grconvertX(0.80, from = "ndc", to = "user")
 y_leg <- grconvertY(0.99, from = "ndc", to = "user")
 
-legend(x = x_leg,
-       y = y_leg,
-       legend   = c("Univariate MR",
-                    "Multivariate MR"),
-       pch      = c(16, 17),   # filled/open circle, filled/open triangle
-       col      = c("black","black"),
-       pt.cex   = 3,               # point size in legend
-       cex = 2,
-       bty      = "y",               # no box around legend
+legend(
+  x = x_leg,
+  y = y_leg,
+  legend = c("Univariate MR", "Multivariate MR - Education", "Multivariate MR - Income"),
+  pch = c(16, 17, 15),
+  col = c("black", "black", "black"),
+  pt.cex = c(cex_other, cex_other, cex_other),
+  cex = cex_disease,
+  bty = "y",
+  box.lwd = 0.3
 )
 
+library(grid)
+# Track 1 (Disease -> Longevity) arrow
+grid.segments(
+  x0 = unit(0.525, "npc"),
+  y0 = unit(0.849, "npc"),
+  x1 = unit(0.525, "npc"),
+  y1 = unit(0.822, "npc"),
+  arrow = arrow(length = unit(0.20, "cm"), type = "open"),
+  gp = gpar(lwd = 0.8)
+)
 
-# finalize
+# Track 3 (Disease -> Fertility) arrow
+grid.segments(
+  x0 = unit(0.525, "npc"),
+  y0 = unit(0.746, "npc"),
+  x1 = unit(0.525, "npc"),
+  y1 = unit(0.719, "npc"),
+  arrow = arrow(length = unit(0.20, "cm"), type = "open"),
+  gp = gpar(lwd = 0.8)
+)
+
+# Track 6 (Fertility -> Disease) arrow
+grid.segments(
+  x0 = unit(0.525, "npc"),
+  y0 = unit(0.646, "npc"),
+  x1 = unit(0.525, "npc"),
+  y1 = unit(0.618, "npc"),
+  arrow = arrow(length = unit(0.20, "cm"), type = "open"),
+  gp = gpar(lwd = 0.8)
+)
+
 circos.clear()
 dev.off()
-
