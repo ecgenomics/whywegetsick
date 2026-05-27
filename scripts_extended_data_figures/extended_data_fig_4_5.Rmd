@@ -1,0 +1,967 @@
+---
+title: "Functional Consequences: extended figures 4 & 5"
+author: "Eva Brigos"
+date: "2025-05-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library("ggpubr")
+library(forcats)
+library(cowplot)
+library(ggrepel)
+```
+
+# Load the dataframes
+
+```{r}
+# Background set
+vep_output <- read.csv("common_SNPs_62diseases_background_set.vep.txt", sep = "\t")
+names(vep_output)[1] <- c("rsid")
+
+# Longevity pleiotropies
+longevity_pleios <- read.csv("plifespan_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+
+# Fertility pleiotropies
+fertility_pleios <- read.csv("fertility_clumped_pleiotropies_62Diseases_commonSNPs_conjfdr005.csv", sep = ",")
+```
+
+# Filter the background set
+
+```{r}
+# Column CANONICAL == YES
+vep_output <- vep_output %>%
+  filter(CANONICAL == "YES")
+
+# New colum with rsid + Gene
+vep_output <- vep_output %>%
+  mutate(rsid_gene = paste(rsid, Gene, sep = "_"))
+
+# Remove duplicates by rsid_gene column
+vep_output <- vep_output %>%
+  distinct(rsid_gene, .keep_all = TRUE)
+
+# In the normal set we have 36 types of consequences, many of them with almost
+# 0% frequency. I am going to group some of them into the bigger categories.
+vep_output <- vep_output %>%
+  mutate(Consequence_mod = if_else(
+    Consequence == "intron_variant,non_coding_transcript_variant",
+    Consequence,
+    sub(",.*", "", Consequence)
+  ))
+```
+
+Count the number of occurrences by functional consequence category:
+
+```{r}
+consequence_counts <- vep_output %>%
+  group_by(Consequence_mod) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Change the name of Consequence_mod categories if percentage < 0.1:
+
+```{r}
+consequence_counts <- consequence_counts %>%
+  mutate(Consequence_mod = if_else(
+    percentage < 0.1,
+    "Other",
+    Consequence_mod
+  ))
+```
+
+Aggregate the "Other" category:
+
+```{r}
+consequence_counts2 <- consequence_counts %>%
+  group_by(Consequence_mod) %>%
+  summarise(count = sum(count)) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Create the text to plot:
+
+```{r}
+consequence_counts2 <- consequence_counts2 %>%
+  mutate(label_text = paste(Consequence_mod, " (", percentage, "%)", sep = "")) %>%
+  mutate(text = paste(percentage, "%", sep = ""))
+
+# Order descending
+consequence_counts2 <- consequence_counts2 %>%
+  arrange(desc(count))
+
+# Put NA values in text if percentage < 12
+consequence_counts2$text[consequence_counts2$percentage < 12] <- NA
+
+```
+
+Make shorter label names to facilitate plotting:
+
+```{r}
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "intron_variant,non_coding_transcript_variant (14.7%)",
+                                              "intron_variant,non_coding (14.7%)", consequence_counts2$label_text)
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "non_coding_transcript_exon_variant (1.2%)",
+                                              "non_coding_transcript_exon (1.2%)", consequence_counts2$label_text)
+consequence_counts2$label_text <- ifelse(consequence_counts2$label_text == "splice_polypyrimidine_tract_variant (0.1%)",
+                                              "splice_polypyrimidine_tract (0.1%)", consequence_counts2$label_text)
+
+consequence_counts2$category <- factor(consequence_counts2$label_text, levels = consequence_counts2$label_text)
+```
+
+Plot:
+
+```{r}
+par(family = "Helvetica")
+```
+
+Count the number of occurrences by biotype category:
+
+```{r}
+biotype_counts <- vep_output %>%
+  group_by(BIOTYPE) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Change the name of biotype categories if percentage < 0.5:
+
+```{r}
+biotype_counts <- biotype_counts %>%
+  mutate(BIOTYPE = if_else(
+    percentage < 0.5,
+    "Other",
+    BIOTYPE
+  ))
+```
+
+Aggregate the "Other" category:
+
+```{r}
+biotype_counts2 <- biotype_counts %>%
+  group_by(BIOTYPE) %>%
+  summarise(count = sum(count)) %>%
+  mutate(percentage = round((count / sum(count)) * 100, 1))
+```
+
+Create the text to plot:
+
+```{r}
+biotype_counts2 <- biotype_counts2 %>%
+  mutate(label_text = paste(BIOTYPE, " (", percentage, "%)", sep = "")) %>%
+  mutate(text = paste(percentage, "%", sep = ""))
+
+# Order descending
+biotype_counts2 <- biotype_counts2 %>%
+  arrange(desc(count))
+
+# Put NA values in text if percentage < 5
+biotype_counts2$text[biotype_counts2$percentage < 5] <- NA
+biotype_counts2$category <- factor(biotype_counts2$label_text, levels = biotype_counts2$label_text)
+```
+
+# Do the analysis for the two life-history traits
+
+Get the metadata:
+
+```{r}
+domains <- read.csv("domain_name_acronym_62diseases.csv", sep = ";")
+names(domains)[1] <- c("disease_code")
+```
+
+Slice the background data-frame with relevant columns:
+
+```{r}
+info_background <- vep_output %>%
+  select(rsid, Consequence, BIOTYPE, SYMBOL, Gene)
+```
+
+## Longevity
+
+Merge the pleiotropy results with the background set. If an RSID has two or more
+consequences (due to different gene isoforms for example), then all of them will
+appear in the data-frame.
+
+```{r}
+longevity <- merge(longevity_pleios, info_background, by = "rsid")
+```
+
+### Longevity by domain
+
+Merge with the domains:
+
+```{r}
+longevity <- merge(longevity, domains, by = "disease_code")
+```
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+domain_dict <- c("Diseases of the circulatory system" = "Circulatory system",
+                  "Diseases of the ear or mastoid process" = "Ear or mastoid process",
+                  "Diseases of the genitourinary system" = "Genitourinary system",
+                  "Diseases of the nervous system" = "Nervous system",
+                  "Diseases of the skin" = "Diseases of the skin",
+                  "Mental, behavioural or neurodevelopmental disorders" = "Mental, behavioural\nor neurodevelopmental",
+                  "Diseases of the digestive system" = "Digestive system",
+                  "Diseases of the eye and adnexa" = "Eye and adnexa",
+                  "Diseases of the musculoskeletal system or connective tissue" = "Musculoskeletal system\nor connective tissue",
+                  "Diseases of the respiratory system" = "Respiratory system",
+                  "Endocrine, nutritional or metabolic diseases" = "Endocrine, nutritional\nor metabolic",
+                  "Neoplasms" = "Neoplasms")
+
+longevity$DomainShort <- domain_dict[longevity$Domain]
+```
+
+Create new data-frame centered in the disease domains:
+
+```{r}
+longevity_domain <- longevity %>%
+  group_by(DomainShort) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Format the data for plotting:
+
+```{r}
+longevity_domain <- longevity_domain %>%
+  arrange(desc(total))
+longevity_domain$order <- c(1:11)
+
+longevity_domain_long <- longevity_domain %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+longevity_domain_long <- longevity_domain_long[longevity_domain_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by domain**:
+
+```{r}
+L1 <- ggplot(longevity_domain_long, aes(x = reorder(DomainShort, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease domain", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,10,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(longevity_domain_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_domain_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_domain_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_domain_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_domain_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_domain_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_domain_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_domain_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_domain_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_domain_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_domain_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_domain_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_domain_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_domain_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_domain_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_domain_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_domain_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_domain_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_domain_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_domain_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_domain_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_domain_long[22,"count"])
+
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L1 <- L1 + annotate("text", x = i, y = 15, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    L1 <- L1 + annotate("text", x = i, y = pos+neg+15, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+### Longevity by functional consequence
+
+Create new data-frame centered in the functional consequence:
+
+```{r}
+longevity_consequence <- longevity %>%
+  group_by(Consequence) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+conseq_dict <- c("non_coding_transcript_exon_variant" = "non_coding_transcript\nexon_variant",
+                  "splice_donor_region_variant,intron_variant" = "splice_donor_region_variant\nintron_variant",
+                  "intron_variant,non_coding_transcript_variant" = "intron_variant\nnon_coding_transcript",
+                  "splice_region_variant,splice_polypyrimidine_tract_variant,intron_variant" = "splice_region_variant\nsplice_polypyrimidine_tract\nintron_variant")
+
+longevity_consequence <- longevity_consequence %>%
+  mutate(
+    Consequence = if_else(
+      Consequence %in% names(conseq_dict),
+      conseq_dict[Consequence],
+      Consequence
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+longevity_consequence <- longevity_consequence %>%
+  arrange(desc(total))
+longevity_consequence$order <- c(1:12)
+
+longevity_consequence_long <- longevity_consequence %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+longevity_consequence_long <- longevity_consequence_long[longevity_consequence_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+L3 <- ggplot(longevity_consequence_long, aes(x = reorder(Consequence, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional consequence", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,10,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(longevity_consequence_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_consequence_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_consequence_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_consequence_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_consequence_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_consequence_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_consequence_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_consequence_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_consequence_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_consequence_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_consequence_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_consequence_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_consequence_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_consequence_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_consequence_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_consequence_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_consequence_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_consequence_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_consequence_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_consequence_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_consequence_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_consequence_long[22,"count"])
+pos_dom12 <- as.numeric(longevity_consequence_long[23,"count"])
+neg_dom12 <- as.numeric(longevity_consequence_long[24,"count"])
+
+for (i in 1:12) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L3 <- L3 + annotate("text", x = i, y = 15, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    L3 <- L3 + annotate("text", x = i, y = pos+neg+25, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+### Longevity by biotype
+
+Create new data-frame centered in the biotype:
+
+```{r}
+longevity_biotype <- longevity %>%
+  group_by(BIOTYPE) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+biotype_dict <- c("processed_pseudogene" = "processed\npseudogene",
+                  "processed_transcript" = "processed\ntranscript",
+                  "transcribed_unprocessed_pseudogene" = "transcribed\nunprocessed_pseudogene",
+                  "unitary_pseudogene" = "unitary\npseudogene",
+                  "unprocessed_pseudogene" = "unprocessed\npseudogene")
+
+longevity_biotype <- longevity_biotype %>%
+  mutate(
+    BIOTYPE = if_else(
+      BIOTYPE %in% names(biotype_dict),
+      biotype_dict[BIOTYPE],
+      BIOTYPE
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+longevity_biotype <- longevity_biotype %>%
+  arrange(desc(total))
+longevity_biotype$order <- c(1:15)
+
+longevity_biotype_long <- longevity_biotype %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+longevity_biotype_long <- longevity_biotype_long[longevity_biotype_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+L5 <- ggplot(longevity_biotype_long, aes(x = reorder(BIOTYPE, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,10,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(longevity_biotype_long[1,"count"])
+neg_dom1 <- as.numeric(longevity_biotype_long[2,"count"])
+pos_dom2 <- as.numeric(longevity_biotype_long[3,"count"])
+neg_dom2 <- as.numeric(longevity_biotype_long[4,"count"])
+pos_dom3 <- as.numeric(longevity_biotype_long[5,"count"])
+neg_dom3 <- as.numeric(longevity_biotype_long[6,"count"])
+pos_dom4 <- as.numeric(longevity_biotype_long[7,"count"])
+neg_dom4 <- as.numeric(longevity_biotype_long[8,"count"])
+pos_dom5 <- as.numeric(longevity_biotype_long[9,"count"])
+neg_dom5 <- as.numeric(longevity_biotype_long[10,"count"])
+pos_dom6 <- as.numeric(longevity_biotype_long[11,"count"])
+neg_dom6 <- as.numeric(longevity_biotype_long[12,"count"])
+pos_dom7 <- as.numeric(longevity_biotype_long[13,"count"])
+neg_dom7 <- as.numeric(longevity_biotype_long[14,"count"])
+pos_dom8 <- as.numeric(longevity_biotype_long[15,"count"])
+neg_dom8 <- as.numeric(longevity_biotype_long[16,"count"])
+pos_dom9 <- as.numeric(longevity_biotype_long[17,"count"])
+neg_dom9 <- as.numeric(longevity_biotype_long[18,"count"])
+pos_dom10 <- as.numeric(longevity_biotype_long[19,"count"])
+neg_dom10 <- as.numeric(longevity_biotype_long[20,"count"])
+pos_dom11 <- as.numeric(longevity_biotype_long[21,"count"])
+neg_dom11 <- as.numeric(longevity_biotype_long[22,"count"])
+pos_dom12 <- as.numeric(longevity_biotype_long[23,"count"])
+neg_dom12 <- as.numeric(longevity_biotype_long[24,"count"])
+pos_dom13 <- as.numeric(longevity_biotype_long[25,"count"])
+neg_dom13 <- as.numeric(longevity_biotype_long[26,"count"])
+pos_dom14 <- as.numeric(longevity_biotype_long[27,"count"])
+neg_dom14 <- as.numeric(longevity_biotype_long[28,"count"])
+pos_dom15 <- as.numeric(longevity_biotype_long[29,"count"])
+neg_dom15 <- as.numeric(longevity_biotype_long[30,"count"])
+
+for (i in 1:15) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    L5 <- L5 + annotate("text", x = i, y = 25, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    L5 <- L5 + annotate("text", x = i, y = pos+neg+60, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+grid_longevity <- plot_grid(L1, L3, L5,
+                      ncol = 1,
+                      labels = c("a", "b", "c"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Helvetica",
+                      label_size = 7,
+                      align = "hv",
+                      rel_widths = c(1, 1))
+
+ggsave("/extended_data_fig_4.png", grid_longevity, height = 180, width = 180, units = "mm", dpi = 400)
+```
+
+# Legend
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Positive Pleiotropy" = "#023E8A",
+      "Negative Pleiotropy"   = "#990000"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 15, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+grid_longevity_legend <- ggdraw(grid_longevity) +
+  draw_grob(
+    legend_grob,
+    x = 0.8, y = 0.80,
+    width = 0.20, height = 0.25
+  )
+
+grid_longevity_legend
+```
+
+Vector file:
+
+```{r}
+ggsave(
+  filename = "extended_data_fig_4.pdf",
+  plot = grid_longevity_legend,
+  device = "pdf",
+  width = 180,
+  height = 180,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
+
+## Fertility
+
+Merge the pleiotropy results with the background set. If an RSID has two or more
+consequences (due to different gene isoforms for example), then all of them will
+appear in the data-frame.
+
+```{r}
+fertility <- merge(fertility_pleios, info_background, by = "rsid")
+```
+
+Merge with the domains:
+
+```{r}
+fertility <- merge(fertility, domains, by = "disease_code")
+```
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+fertility$DomainShort <- domain_dict[fertility$Domain]
+```
+
+Create new data-frame centered in the disease domains:
+
+```{r}
+fertility_domain <- fertility %>%
+  group_by(DomainShort) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Format the data for plotting:
+
+```{r}
+fertility_domain <- fertility_domain %>%
+  arrange(desc(total))
+fertility_domain$order <- c(1:11)
+
+fertility_domain_long <- fertility_domain %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+fertility_domain_long <- fertility_domain_long[fertility_domain_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by domain**:
+
+```{r}
+F1 <- ggplot(fertility_domain_long, aes(x = reorder(DomainShort, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Disease domain", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(fertility_domain_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_domain_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_domain_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_domain_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_domain_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_domain_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_domain_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_domain_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_domain_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_domain_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_domain_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_domain_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_domain_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_domain_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_domain_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_domain_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_domain_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_domain_long[18,"count"])
+pos_dom10 <- as.numeric(fertility_domain_long[19,"count"])
+neg_dom10 <- as.numeric(fertility_domain_long[20,"count"])
+pos_dom11 <- as.numeric(fertility_domain_long[21,"count"])
+neg_dom11 <- as.numeric(fertility_domain_long[22,"count"])
+
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F1 <- F1 + annotate("text", x = i, y = 5, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    F1 <- F1 + annotate("text", x = i, y = pos+neg+5, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+### Fertility by functional consequence
+
+Create new data-frame centered in the functional consequence:
+
+```{r}
+fertility_consequence <- fertility %>%
+  group_by(Consequence) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+conseq_dict <- c("intron_variant,non_coding_transcript_variant" = "intron_variant\nnon_coding_transcript",
+                  "non_coding_transcript_exon_variant" = "non_coding_transcript\nexon_variant")
+
+fertility_consequence <- fertility_consequence %>%
+  mutate(
+    Consequence = if_else(
+      Consequence %in% names(conseq_dict),
+      conseq_dict[Consequence],
+      Consequence
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+fertility_consequence <- fertility_consequence %>%
+  arrange(desc(total))
+fertility_consequence$order <- c(1:9)
+
+fertility_consequence_long <- fertility_consequence %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+fertility_consequence_long <- fertility_consequence_long[fertility_consequence_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+F3 <- ggplot(fertility_consequence_long, aes(x = reorder(Consequence, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Functional consequence", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(fertility_consequence_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_consequence_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_consequence_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_consequence_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_consequence_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_consequence_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_consequence_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_consequence_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_consequence_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_consequence_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_consequence_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_consequence_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_consequence_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_consequence_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_consequence_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_consequence_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_consequence_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_consequence_long[18,"count"])
+
+for (i in 1:9) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F3 <- F3 + annotate("text", x = i, y = 5, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    F3 <- F3 + annotate("text", x = i, y = pos+neg+12, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+### Fertility by biotype
+
+Create new data-frame centered in the biotype:
+
+```{r}
+fertility_biotype <- fertility %>%
+  group_by(BIOTYPE) %>%
+  summarize(total_positive = sum(pleiotropy_sign == "positive"),
+            total_negative = sum(pleiotropy_sign == "negative")) %>%
+  mutate(total = total_positive + total_negative,
+         proportion_positive = total_positive / total,
+         proportion_negative = total_negative / total)
+```
+
+Change the names for a shorter version:
+
+```{r}
+biotype_dict <- c("processed_pseudogene" = "processed\npseudogene",
+                  "processed_transcript" = "processed\ntranscript",
+                  "transcribed_processed_pseudogene" = "transcribed\nprocessed_pseudogene")
+
+fertility_biotype <- fertility_biotype %>%
+  mutate(
+    BIOTYPE = if_else(
+      BIOTYPE %in% names(biotype_dict),
+      biotype_dict[BIOTYPE],
+      BIOTYPE
+    )
+  )
+```
+
+Format the data for plotting:
+
+```{r}
+fertility_biotype <- fertility_biotype %>%
+  arrange(desc(total))
+fertility_biotype$order <- c(1:11)
+
+fertility_biotype_long <- fertility_biotype %>%
+  pivot_longer(cols = starts_with("total"), names_to = "type", values_to = "count") %>%
+  mutate(type = recode(type, total_positive = "Positive", total_negative = "Negative"))
+
+fertility_biotype_long <- fertility_biotype_long[fertility_biotype_long$type != "total", ]
+```
+
+Plot **number of pleiotropies by consequence**:
+
+```{r}
+F5 <- ggplot(fertility_biotype_long, aes(x = reorder(BIOTYPE, order),
+                                            y = count,
+                                            fill = type)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Biotype", y = "Number of pleiotropies") +
+  scale_fill_manual(values = c("#990000CC", "#023E8ACC")) +
+  theme_bw()+
+  theme(text = element_text(size = 5, family = "Helvetica", color = "black"),
+        axis.text.x = element_text(angle = 60, hjust = 1, size = 5),
+        axis.text.y = element_text(size = 7),
+        legend.position = "none",
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, margin = margin(0,20,0,0)),
+        plot.margin = margin(10,10,2,10),
+        panel.grid = element_blank())
+
+pos_dom1 <- as.numeric(fertility_biotype_long[1,"count"])
+neg_dom1 <- as.numeric(fertility_biotype_long[2,"count"])
+pos_dom2 <- as.numeric(fertility_biotype_long[3,"count"])
+neg_dom2 <- as.numeric(fertility_biotype_long[4,"count"])
+pos_dom3 <- as.numeric(fertility_biotype_long[5,"count"])
+neg_dom3 <- as.numeric(fertility_biotype_long[6,"count"])
+pos_dom4 <- as.numeric(fertility_biotype_long[7,"count"])
+neg_dom4 <- as.numeric(fertility_biotype_long[8,"count"])
+pos_dom5 <- as.numeric(fertility_biotype_long[9,"count"])
+neg_dom5 <- as.numeric(fertility_biotype_long[10,"count"])
+pos_dom6 <- as.numeric(fertility_biotype_long[11,"count"])
+neg_dom6 <- as.numeric(fertility_biotype_long[12,"count"])
+pos_dom7 <- as.numeric(fertility_biotype_long[13,"count"])
+neg_dom7 <- as.numeric(fertility_biotype_long[14,"count"])
+pos_dom8 <- as.numeric(fertility_biotype_long[15,"count"])
+neg_dom8 <- as.numeric(fertility_biotype_long[16,"count"])
+pos_dom9 <- as.numeric(fertility_biotype_long[17,"count"])
+neg_dom9 <- as.numeric(fertility_biotype_long[18,"count"])
+pos_dom10 <- as.numeric(fertility_biotype_long[19,"count"])
+neg_dom10 <- as.numeric(fertility_biotype_long[20,"count"])
+pos_dom11 <- as.numeric(fertility_biotype_long[21,"count"])
+neg_dom11 <- as.numeric(fertility_biotype_long[22,"count"])
+
+for (i in 1:11) {
+  pos_name <- paste("pos_dom", i, sep = "")
+  neg_name <- paste("neg_dom", i, sep = "")
+  pos <- get(pos_name)
+  neg <- get(neg_name)
+  if (!(pos == 0)) {
+    F5 <- F5 + annotate("text", x = i, y = 10, label = as.character(pos), size = 5/.pt, color = "black")
+  }
+  if (!(neg == 0)) {
+    F5 <- F5 + annotate("text", x = i, y = pos+neg+25, label = as.character(neg), size = 5/.pt, color = "black")
+  }
+}
+```
+
+Aggregate plots and save:
+
+```{r}
+grid_fertility <- plot_grid(F1, F3, F5,
+                      ncol = 1,
+                      labels = c("a", "b", "c"),
+                      label_fontface = "bold",
+                      label_fontfamily = "Helvetica",
+                      label_size = 7,
+                      align = "hv",
+                      rel_widths = c(1, 1))
+
+ggsave("extended_data_fig_5.png", grid_fertility, height = 170, width = 170, units = "mm", dpi = 400)
+```
+
+# Legend
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Positive Pleiotropy" = "#023E8A",
+      "Negative Pleiotropy"   = "#990000"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 15, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "white", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+grid_fertility_legend <- ggdraw(grid_fertility) +
+  draw_grob(
+    legend_grob,
+    x = 0.8, y = 0.80,
+    width = 0.20, height = 0.25
+  )
+
+grid_fertility_legend
+```
+
+Vector file:
+
+```{r}
+ggsave(
+  filename = "extended_data_fig_5.pdf",
+  plot = grid_fertility_legend,
+  device = "pdf",
+  width = 180,
+  height = 180,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
