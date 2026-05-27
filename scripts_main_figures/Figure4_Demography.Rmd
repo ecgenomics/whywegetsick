@@ -1,7 +1,7 @@
 ---
 title: "Figure4_Demography"
 author: "Eva Brigos"
-date: "2025-05-13"
+date: "2025-05-27"
 output: html_document
 ---
 
@@ -17,15 +17,14 @@ library(ggbreak)
 # Load data-frames
 
 ```{r}
-# Age at disease onset
-ado <- read.csv("../data/onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+ado <- read.csv("onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
 colnames(ado)[1] <- "Code"
 ```
 
 # Load the metadata file
 
 ```{r}
-metadata <- read.csv("../data/metadata_62complexdiseases.csv", sep = ";")
+metadata <- read.csv("metadata_62complexdiseases.csv", sep = ";")
 meta <- metadata %>% select(Code, Percentage_UKBiobank_Participants)
 ```
 
@@ -42,14 +41,13 @@ meta <- meta %>%
 # Load the N cases file
 
 ```{r}
-ncases <- read.csv("../data/samplesize_decile10_62diseases.csv", sep = ",", header = TRUE)
+ncases <- read.csv("samplesize_decile10_62diseases.csv", sep = ",", header = TRUE)
 ```
 
 # Define the directory containing the files
 
 ```{r}
-#Please request data to authors.
-file_directory <- "../demography_analysis/results/nchildren_rmarkdown_analysis_v16.03.2025"
+file_directory <- "nchildren_rmarkdown_analysis_v16.03.2025"
 ```
 
 # List all 62 files
@@ -75,7 +73,6 @@ controls_sd_array <- c()
 
 for (file_path in file_list) {
   data <- read.csv(file_path, sep = "\t")
-  # Extract the disease
   disease_code <- data$Disease[1]
   # Calculate mean values
   mean_case <- data$mean[data$Status == "Decil 10, cases"]
@@ -125,28 +122,12 @@ result_df$SE_controls <- result_df$SD_Control / sqrt(result_df$NControls)
 
 Calculate the SE of the ratio:
 
-Delta method, option 1:
-
-```{r}
-option1 <- result_df$Ratio * sqrt((result_df$SE_cases / result_df$Mean_Case)^2 + (result_df$SE_controls / result_df$Mean_Control)^2)
-```
-
-Delta method, option 2:
-
-```{r}
-option2 <- sqrt((result_df$SE_cases^2 / result_df$Mean_Control^2) + ((result_df$Mean_Case^2 * result_df$SE_controls^2) / result_df$Mean_Control^4))
-option2 <- sqrt((result_df$SE_controls^2 / result_df$Mean_Case^2) + ((result_df$Mean_Control^2 * result_df$SE_cases^2) / result_df$Mean_Case^4))
-```
-
-It gives the same result with both formulas!
-
 ```{r}
 result_df$Ratio_SE <- result_df$Ratio * sqrt((result_df$SE_cases / result_df$Mean_Case)^2 + (result_df$SE_controls / result_df$Mean_Control)^2)
 ```
 
 ```{r, eval=FALSE}
-# This table corresponds to Supplementary Table 16
-write.csv(result_df, file = "./demography_main_figure_62diseases_nchildren.tsv", row.names = FALSE, quote = FALSE)
+write.csv(result_df, file = "demography_main_figure_62diseases_nchildren.tsv", row.names = FALSE, quote = FALSE)
 ```
 
 # Merge with the age at disease onset
@@ -159,7 +140,6 @@ df_plot <- merge(result_df, ado, by = "Code")
 
 ```{r}
 df_plot <- df_plot[order(df_plot$ADO_5), ]
-# Regenerate index
 rownames(df_plot) <- NULL
 ```
 
@@ -171,17 +151,13 @@ df_plot$Ratio_SE_max <- df_plot$Ratio + df_plot$Ratio_SE
 ```
 
 For disease with ID=2, there are only 4 cases so the SE is very big.
-I will make sure that the SE is not bigger than the ratio itself.
 
-# See which 95% CI accepts null hypothesis (no difference between cases and controls)
+# Check no difference between cases and controls)
 If the 95% CI includes 1, then the null hypothesis is accepted.
 
 ```{r}
-# Iterate over rows of data-frame
 for (i in 1:nrow(df_plot)) {
-  # Check if the confidence interval includes 1
   if (df_plot$Ratio_SE_min[i] < 1 && df_plot$Ratio_SE_max[i] > 1) {
-    # new column with non-significant
     df_plot$Ratio_non_significant[i] <- "non-significant"
   } else {
     df_plot$Ratio_non_significant[i] <- "significant"
@@ -214,15 +190,12 @@ df_plot <- merge(df_plot, meta, by = "Code")
 Save the data-frame:
 
 ```{r, eval=FALSE}
-write.csv(df_plot, file = "./demography_main_figure_62diseases_nchildren_plot.tsv", row.names = FALSE)
+write.csv(df_plot, file = "demography_main_figure_62diseases_nchildren.tsv", row.names = FALSE)
 ```
 
 # Create a scatterplot
 
-# Option three: adding color to differentiate between diagnosed with more children and undiagnosed with more childre.
-
 ```{r}
-#Put size as factor
 df_plot$Size <- as.factor(df_plot$Size)
 ```
 
@@ -242,12 +215,12 @@ p3 <- ggplot(df_plot, aes(x = ADO_5, y = log2(Ratio))) +
   theme_classic()
 p3 <- p3 + labs(x = "Age at disease onset", y = expression(log[2](Ratio)))
 p3 <- p3 + theme(
-    axis.text.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 5)),
-    axis.text.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 5)),
-    axis.title.x = element_text(size = 7, family = "Arial", color = "black", margin = margin(t = 10), face = "bold"),
-    axis.title.y = element_text(size = 7, family = "Arial", color = "black", margin = margin(r = 10), face = "bold"),
-    legend.title = element_text(size = 7, family = "Arial", color = "black", face = "bold"),
-    legend.text = element_text(size = 7, family = "Arial", color = "black"),
+    axis.text.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 5)),
+    axis.text.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 5)),
+    axis.title.x = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(t = 10)),
+    axis.title.y = element_text(size = 7, family = "Helvetica", color = "black", margin = margin(r = 10)),
+    legend.title = element_text(size = 7, family = "Helvetica", color = "black", face = "bold"),
+    legend.text = element_text(size = 7, family = "Helvetica", color = "black"),
     legend.text.align = 0,
     legend.position = c(0.78, 0.75),
     panel.grid = element_blank(),
@@ -256,12 +229,10 @@ p3 <- p3 + labs(size = "Overlap with UK Biobank", color = "") +
   guides(size = guide_legend(override.aes = list(color = "black", shape = 21)))
 p3 <- p3 + 
   guides(
-    # color legend as first
     color = guide_legend(
-      override.aes = list(size = 8),
+      override.aes = list(size = 7),
       order = 1
     ),
-    # size legend as second
     size = guide_legend(
       override.aes = list(color = "black", shape = 21),
       order = 2
@@ -272,10 +243,19 @@ p3 <- p3 +
 Save:
 
 ```{r}
-ggsave("./Figure4_demography.png", p3, width = 180, height = 130, units = "mm", dpi = 400)
+ggsave("Figure4_demography.png", p3, width = 180, height = 130, units = "mm", dpi = 400)
 ```
 
+Vector file:
 
-
-
-
+```{r}
+ggsave(
+  filename = "Figure4_demography.pdf",
+  plot = p3,
+  device = "pdf",
+  width = 180,
+  height = 130,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
