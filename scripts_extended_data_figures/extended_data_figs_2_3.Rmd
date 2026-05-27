@@ -1,0 +1,370 @@
+---
+title: "Extended Figure 3"
+author: "Eva Brigos"
+date: "2026-05-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Libraries
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library("ggpubr")
+library(forcats)
+library(cowplot)
+```
+
+# Load the dataframes
+
+```{r}
+# Genetic Correlations
+gcF <- read.csv("fertility-genetic-correlations.txt", sep = "\t")
+gcL <- read.csv("longevity-genetic-correlations.txt", sep = "\t")
+
+# Age at disease onset
+ado <- read.csv("onset_age_62diseases_v17.01.2025_FinRegistryR11.tsv", sep = "\t")
+
+# Metadata
+metadata <- read.csv("domain_name_acronym_62diseases.csv", sep = ";")
+```
+
+Rename the data-frame columns:
+
+```{r}
+names(ado) <- c("Code", "ADO_5", "ADO_50", "ADO_95")
+names(gcF) <- c("Code", "Intercept", "Intercept_SE", "GC", "GC_SE", "PValue")
+names(gcL) <- c("Code", "Intercept", "Intercept_SE", "GC", "GC_SE", "PValue")
+```
+
+Create a new merged data-frame:
+
+```{r}
+# Merge gc with ado
+gc_adoF <- merge(gcF, ado, by = "Code")
+gc_adoL <- merge(gcL, ado, by = "Code")
+
+# Merge to have GC information
+df_F <- merge(gc_adoF, metadata, by = "Code")
+df_L <- merge(gc_adoL, metadata, by = "Code")
+```
+
+# Select diseases based on significance threshold
+
+```{r}
+# Compute FDR
+df_F$FDR <- p.adjust(df_F$PValue, method = "BH")
+df_L$FDR <- p.adjust(df_L$PValue, method = "BH")
+
+# Filter for significance
+df2_F <- df_F %>% filter(PValue < 0.05)
+df2_L <- df_L %>% filter(PValue < 0.05)
+```
+
+```{r}
+df2_F$Correlation <- ifelse(df2_F$GC > 0, "Positive GC", "Negative GC")
+table(df2_F$Correlation)
+
+df2_L$Correlation <- ifelse(df2_L$GC > 0, "Positive GC", "Negative GC")
+table(df2_L$Correlation)
+```
+
+# Correlation test
+
+```{r}
+# Change GCST010003 from 1.26 to 1.27 to avoid the exact same value with GCST90014023
+# Change GCST003763 from 24.6 to 24.7 to avoid the exact same value with GCST90129439
+df2_L[28, "ADO_5"]
+df2_L[25, "ADO_5"]
+df2_L[28, "ADO_5"] <- 1.27
+df2_L[25, "ADO_5"] <- 24.7
+```
+
+Correlation test: 
+
+```{r}
+correlation_result_F <- cor.test(df2_F$GC, df2_F$ADO_5, method = "spearman")
+print(correlation_result_F)
+correlation_F <- correlation_result_F$estimate
+p_value_F <- correlation_result_F$p.value
+
+correlation_result_L <- cor.test(df2_L$GC, df2_L$ADO_5, method = "spearman")
+print(correlation_result_L)
+correlation_L <- correlation_result_L$estimate
+p_value_L <- correlation_result_L$p.value
+```
+
+# Do the plot by disease domain
+
+Create a dictionary to map the domain names with new shorter version:
+
+```{r}
+domain_dict <- c("Diseases of the circulatory system" = "Circulatory system",
+                  "Diseases of the ear or mastoid process" = "Ear or mastoid process",
+                  "Diseases of the genitourinary system" = "Genitourinary system",
+                  "Diseases of the nervous system" = "Nervous system",
+                  "Diseases of the skin" = "Diseases of the skin",
+                  "Mental, behavioural or neurodevelopmental disorders" = "Mental, behavioural\nor neurodevelopmental",
+                  "Diseases of the digestive system" = "Digestive system",
+                  "Diseases of the eye and adnexa" = "Eye and adnexa",
+                  "Diseases of the musculoskeletal system or connective tissue" = "Musculoskeletal system\nor connective tissue",
+                  "Diseases of the respiratory system" = "Respiratory system",
+                  "Endocrine, nutritional or metabolic diseases" = "Endocrine, nutritional\nor metabolic",
+                  "Neoplasms" = "Neoplasms")
+
+df_F$DomainShort <- domain_dict[df_F$Domain]
+df2_F$DomainShort <- domain_dict[df2_F$Domain]
+
+df_L$DomainShort <- domain_dict[df_L$Domain]
+df2_L$DomainShort <- domain_dict[df2_L$Domain]
+```
+
+Dictionary for the colors:
+
+```{r}
+domcolors <- c(
+  "Diseases of the skin" = "black",
+  "Mental, behavioural\nor neurodevelopmental" = "#56B4E9",
+  "Digestive system" ="#332288",
+  "Eye and adnexa" = "#F0E442",
+  "Respiratory system" = "#0072B2",
+  "Nervous system" = "#D55E00",
+  "Neoplasms" = "#CC79A7",
+  "Endocrine, nutritional\nor metabolic" = "#E69F00",
+  "Circulatory system" = "#882255",
+  "Musculoskeletal system\nor connective tissue" = "#117733",
+  "Genitourinary system" = "#009E73",
+  "Ear or mastoid process" = "#DDCC77"
+)
+```
+
+With the significant diseases FERTILITY:
+
+```{r}
+gc_domain_sig_F <- df2_F %>%
+  mutate(class = fct_reorder(DomainShort, GC, .fun='median')) %>%
+  ggplot( aes(x=reorder(DomainShort, GC), y=GC)) +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "black", linewidth = 0.5) +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 0), fill = "#F8F8FF", alpha = 0.5) +
+    geom_boxplot(aes(fill = DomainShort)) +
+  geom_point(position = position_dodge(width = 0.75), size = 1.5, color = "black") +
+  scale_fill_manual(values = domcolors) +
+  theme_bw() +
+  labs(y = expression(paste("Genetic correlation (", italic(r)[g], ")"))) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1,
+                                            size = 7, family = "Helvetica", color = "black"),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, color = "black", margin = margin(r = 10), family = "Helvetica"),
+        plot.margin = margin(5, 5, 5, 5),
+        panel.grid = element_blank())
+
+```
+
+With the significant diseases LONGEVITY:
+
+```{r}
+gc_domain_sig_longevity <- df2_L %>%
+  mutate(class = fct_reorder(DomainShort, GC, .fun='median')) %>%
+  ggplot( aes(x=reorder(DomainShort, GC), y=GC)) +
+    geom_hline(yintercept = 0, linetype = "dotted", color = "black", linewidth = 0.5) +
+    geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = 0), fill = "#F8F8FF", alpha = 0.5) +
+    geom_boxplot(aes(fill = DomainShort)) +
+  geom_point(position = position_dodge(width = 0.75), size = 1.5, color = "black") +
+  scale_fill_manual(values = domcolors) +
+  theme_bw() +
+  labs(y = expression(paste("Genetic correlation (", italic(r)[g], ")"))) +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 60, hjust = 1, vjust = 1,
+                                            size = 7, family = "Helvetica", color = "black"),
+        axis.text.y = element_text(size = 7, family = "Helvetica", color = "black"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(size = 7, color = "black", margin = margin(r = 10), family = "Helvetica"),
+        plot.margin = margin(5, 5, 5, 5),
+        panel.grid = element_blank())
+
+```
+
+Merge into one figure: 
+
+```{r}
+gc_domains_plot <- plot_grid(
+  gc_domain_sig_longevity, gc_domain_sig_F,
+  ncol = 1,
+  labels = c("a", "b"),
+  label_fontface = "bold",
+  label_size = 7,
+  align = "hv",
+  rel_widths = c(1, 1)
+)
+```
+
+Save the plot:
+
+```{r}
+ggsave("/extended_data_fig_2.png", gc_domains_plot, height = 180, width = 180, units = "mm", dpi = 400)
+```
+
+Vector file:
+
+```{r}
+ggsave(
+  filename = "extended_data_fig_2.pdf",
+  plot = gc_domains_plot,
+  device = "pdf",
+  width = 180,
+  height = 180,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
+
+# Correlation between onset age and LDSC results
+
+Add the correlation and significance columns FERTILITY:
+
+```{r}
+df_F$Correlation <- ifelse(df_F$GC > 0, "Positive GC", "Negative GC")
+df_F$Significant <- ifelse(df_F$PValue < 0.05, "Significant", "Not Significant")
+```
+
+Do the plot:
+
+```{r}
+corr_gc_ado_fertility <- ggplot(df_F, aes(x = ADO_5, y = GC, color = Correlation)) +
+  geom_point(alpha = 0.3, size = 2) +
+  geom_point(data = df_F, aes(alpha = Significant), size = 2)+
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  geom_smooth(data = df2_F, method = "lm", se = TRUE, color = "black", size = 0.5) +
+  theme_bw() +
+  annotate("text", x = Inf, y = Inf,
+           label = paste("R =", round(correlation_F, 2), "\nP =",
+                         format(p_value_F, scientific = TRUE)), 
+           hjust = 1.1, vjust = 2, size = 7/.pt, color = "black")
+corr_gc_ado_fertility <- corr_gc_ado_fertility + theme(legend.position = "none",
+                     axis.title.x = element_text(size = 7, margin = margin(t = 6), family = "Helvetica"),
+                     axis.title.y = element_text(size = 7, margin = margin(r = 6), family = "Helvetica"),
+                     axis.text.y = element_text(size = 7, family = "Helvetica"),
+                     axis.text.x = element_text(size = 7, family = "Helvetica"),
+                     plot.margin = margin(t = 5, r = 5, b = 5, l = 5),
+                     axis.line = element_line(colour = "black"),
+                     panel.grid = element_blank())
+corr_gc_ado_fertility <- corr_gc_ado_fertility + ylab(expression(paste("Genetic correlation (", italic(r)[g], ")")))
+corr_gc_ado_fertility <- corr_gc_ado_fertility + xlab("Age at disease onset")
+```
+
+Add the correlation and significance columns LONGEVITY:
+
+```{r}
+df_L$Correlation <- ifelse(df_L$GC > 0, "Positive GC", "Negative GC")
+df_L$Significant <- ifelse(df_L$PValue < 0.05, "Significant", "Not Significant")
+```
+
+Do the plot:
+
+```{r}
+corr_gc_ado_longevity <- ggplot(df_L, aes(x = ADO_5, y = GC, color = Correlation)) +
+  geom_point(alpha = 0.3, size = 2) +
+  geom_point(data = df_L, aes(alpha = Significant), size = 2)+
+  scale_color_manual(values = c("Positive GC" = "#023E8A", "Negative GC" = "#990000")) +
+  geom_smooth(data = df2_L, method = "lm", se = TRUE, color = "black", size = 0.5) +
+  theme_bw() +
+  annotate("text", x = Inf, y = Inf,
+           label = paste("R =", round(correlation_L, 2), "\nP =",
+                         format(p_value_L, scientific = TRUE)), 
+           hjust = 1.1, vjust = 2, size = 7/.pt, color = "black")
+corr_gc_ado_longevity <- corr_gc_ado_longevity + theme(legend.position = "none",
+                     axis.title.x = element_text(size = 7, margin = margin(t = 6), family = "Helvetica"),
+                     axis.title.y = element_text(size = 7, margin = margin(r = 6), family = "Helvetica"),
+                     axis.text.y = element_text(size = 7, family = "Helvetica"),
+                     axis.text.x = element_text(size = 7, family = "Helvetica"),
+                     plot.margin = margin(t = 5, r = 5, b = 5, l = 5),
+                     axis.line = element_line(colour = "black"),
+                     panel.grid = element_blank())
+corr_gc_ado_longevity <- corr_gc_ado_longevity + ylab(expression(paste("Genetic correlation (", italic(r)[g], ")")))
+corr_gc_ado_longevity <- corr_gc_ado_longevity + xlab("Age at disease onset")
+```
+
+Merge:
+
+```{r}
+corr_ado_plot <- plot_grid(
+  corr_gc_ado_longevity, corr_gc_ado_fertility,
+  ncol = 1,
+  labels = c("a", "b"),
+  label_fontface = "bold",
+  label_size = 7,
+  align = "hv",
+  rel_widths = c(1, 1)
+)
+```
+
+# Legend
+
+```{r}
+legend_plot <- ggplot(
+  data.frame(
+    group = c("Positive Pleiotropy", "Negative Pleiotropy"),
+    x = 1, y = 1
+  ),
+  aes(x = x, y = y, color = group)
+) +
+  geom_point(size = 2.5) +
+  scale_color_manual(
+    values = c(
+      "Positive Pleiotropy" = "#023E8A",
+      "Negative Pleiotropy"   = "#990000"
+    )
+  ) +
+  guides(color = guide_legend(
+    title = NULL,
+    override.aes = list(shape = 16, size = 2.5)
+  )) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 6, family = "Helvetica", color = "black"),
+    legend.key.height = unit(0.60, "cm"),
+    legend.key.width  = unit(0.20, "cm"),
+    legend.background = element_rect(fill = "white", color = "black", linewidth = 0.3),
+    legend.box.background = element_rect(fill = "white", color = "black", linewidth = 0.3),
+    legend.margin = margin(2, 2, 2, 2)
+  )
+
+legend_grob <- get_legend(legend_plot)
+
+corr_ado_plot_legend <- ggdraw(corr_ado_plot) +
+  draw_grob(
+    legend_grob,
+    x = 0.8, y = 0.50,
+    width = 0.20, height = 0.25
+  )
+
+corr_ado_plot_legend
+```
+
+# Save
+
+```{r}
+ggsave2("extended_data_fig_3.png", corr_ado_plot_legend, height = 170, width = 180, units = "mm", dpi = 400)
+```
+
+Vector file:
+
+```{r}
+ggsave(
+  filename = "extended_data_fig_3.pdf",
+  plot = corr_ado_plot_legend,
+  device = "pdf",
+  width = 180,
+  height = 170,
+  units = "mm",
+  useDingbats = FALSE
+)
+```
